@@ -484,3 +484,51 @@ Oracle VM public IP:
 
 
 <!-- CI/CD deployment test -->
+
+----------------------------------------------------
+
+## Investment Tracker — Progress Reminder
+
+### 18 Sep 2026 — CI/CD Successfully Completed
+
+* GitHub repo: `farhan92cr/Investment-tracker`
+* Oracle VM: `invesment-tracker-vm`
+* Deployment path:
+  **Windows → GitHub → GitHub Actions → SSH → Oracle VM → Docker**
+* GitHub Actions successfully deployed the application to Oracle VM.
+* VM ↔ GitHub SSH authentication verified.
+* VM project path: `/home/ubuntu/Investment-tracker`
+* Main deployment workflow:
+  `git pull origin main` → `docker compose up -d --build`
+* CI/CD test deployment completed successfully.
+
+### 21 Sep 2026 — Database & Application Verified
+
+* PostgreSQL public port `5432` removed for security.
+* PostgreSQL Docker volume `investment-tracker_db_data` preserved.
+* PostgreSQL container: **healthy**
+* Backend: **running on port 8000**
+* Frontend: **running on port 5173**
+* Application tested at:
+  `http://130.210.42.159:5173/app`
+* Created account and stored investment data.
+* Reopened application after container/reboot troubleshooting.
+* **Account and stored data were still present.**
+* Frontend → Backend → PostgreSQL communication confirmed working.
+* Database persistence confirmed.
+
+### Current Status
+
+**Application: WORKING ✅**
+**Database persistence: VERIFIED ✅**
+**PostgreSQL public access: REMOVED 🔒**
+**CI/CD: SUCCESSFULLY VERIFIED ✅**
+
+### Next Step
+
+Perform one final harmless CI/CD verification:
+
+**Windows → GitHub → GitHub Actions → Oracle VM → deployment**
+
+Use a small README-only change as the test. Do not modify application code or database data.
+
