@@ -16,7 +16,9 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 20m
           script: |
             cd /home/ubuntu/Investment-tracker
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             docker compose up -d --build
