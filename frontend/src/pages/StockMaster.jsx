@@ -24,10 +24,11 @@ export default function StockMaster() {
   }
 
   async function handleDelete(id) {
-    if (!confirm('Remove this stock and all its transactions?')) return
-    await api.delete(`/stocks/${id}`)
-    load()
-  }
+  const confirmed = window.confirm('Are you sure you want to delete this? This cannot be undone yet.')
+  if (!confirmed) return
+  await api.delete(`/stocks/${id}`)   // (keep whatever your actual endpoint is per file)
+  load()
+}
 
   return (
     <div>
