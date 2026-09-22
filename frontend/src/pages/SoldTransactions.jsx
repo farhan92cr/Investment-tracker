@@ -30,7 +30,6 @@ export default function SoldTransactions() {
     }
   }
 
-  
   async function handleDelete(id) {
   const confirmed = window.confirm('Are you sure you want to delete this? This cannot be undone yet.')
   if (!confirmed) return
