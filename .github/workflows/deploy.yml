@@ -28,7 +28,24 @@ jobs:
             -o ServerAliveCountMax=20 \
             "$SSH_USER@$SERVER_HOST" << 'EOF'
             cd /home/ubuntu/Investment-tracker
+
             git fetch origin main
             git reset --hard origin/main
+
             docker compose up -d --build
+
+            echo "Waiting for API to start..."
+            for i in {1..12}; do
+              if curl -fsS http://127.0.0.1:8000/health > /dev/null; then
+                echo "API health check passed."
+                exit 0
+              fi
+
+              echo "API not ready yet. Waiting 5 seconds..."
+              sleep 5
+            done
+
+            echo "ERROR: API health check failed."
+            docker compose ps
+            exit 1
           EOF
