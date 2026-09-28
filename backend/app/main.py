@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from prometheus_fastapi_instrumentator import Instrumentator
+
 from app.database import Base, engine
 from app.routers import auth, stocks, transactions, prices, summary
 
@@ -9,6 +11,7 @@ from app.routers import auth, stocks, transactions, prices, summary
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Investment Tracker API")
+Instrumentator().instrument(app).expose(app)
 
 app.add_middleware(
     CORSMiddleware,
