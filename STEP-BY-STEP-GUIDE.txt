@@ -1,0 +1,3072 @@
+INVESTMENT TRACKER STEP-BY-STEP REBUILD GUIDE
+============================================================
+
+Purpose
+
+This document is the complete rebuild/runbook for the Investment Tracker
+project.
+
+The purpose is NOT to explain only the final architecture. It is
+intended to let you return months later and rebuild the project from the
+beginning, understand why each component exists, reproduce the
+deployment, configure monitoring, configure CI/CD, create backups, and
+verify the final system.
+
+IMPORTANT: - Replace example values such as YOUR_GITHUB_USERNAME,
+YOUR_VM_IP, and YOUR_DOMAIN with your own values. - Do not copy
+passwords, private SSH keys, API secrets, or other credentials into
+GitHub. - Commands are primarily written for Windows PowerShell on the
+local PC and Ubuntu on Oracle Cloud VMs. - The exact Oracle Cloud
+console wording can change over time, but the underlying steps remain
+the same. - Work one section at a time and verify each section before
+moving to the next.
+
+============================================================ PART 1 —
+UNDERSTAND THE PROJECT BEFORE BUILDING IT
+============================================================
+
+1.1 What are we building?
+
+Investment Tracker is a web application for managing investment-related
+information.
+
+The application has three main application components:
+
+1.  Frontend The user interface that runs in the web browser.
+
+2.  Backend A FastAPI/Python application that provides the API and
+    business logic.
+
+3.  PostgreSQL database The persistent database that stores application
+    data.
+
+The production architecture additionally contains:
+
+4.  Nginx A web server/reverse proxy that receives public web requests
+    and routes them to the correct application service.
+
+5.  Docker A container platform used to package and run the application
+    services consistently.
+
+6.  Docker Compose A tool used to define and run the frontend, backend,
+    and database as a group.
+
+7.  GitHub The source-code repository and version-control platform.
+
+8.  GitHub Actions The CI/CD automation system that deploys changes to
+    the production server.
+
+9.  Prometheus A monitoring system that collects time-series metrics.
+
+10. Grafana A dashboard and visualization platform used to display
+    monitoring information.
+
+11. Node Exporter A Prometheus exporter that exposes Linux server
+    metrics such as CPU, memory, disk, network, and uptime.
+
+12. cAdvisor A monitoring component that exposes Docker container
+    resource information.
+
+13. Blackbox Exporter A Prometheus exporter that checks an endpoint from
+    the outside and reports whether it is reachable and healthy.
+
+14. Alerts Prometheus rules that detect important operational problems
+    such as a production server being unreachable, the API being
+    unavailable, or disk usage becoming too high.
+
+1.2 High-level architecture
+
+The final architecture is approximately:
+
+USER | v PUBLIC INTERNET | v ORACLE PRODUCTION VM | +–> Nginx :80 | +–>
+Frontend :5173 | +–> Backend API :8000 | v PostgreSQL :5432
+
+SEPARATE ORACLE MONITORING VM | +–> Prometheus :9090 | +–> Grafana :3000
+| +–> Blackbox Exporter :9115 | +–> checks application health
+
+Production VM | +–> Node Exporter :9100 +–> cAdvisor :8080
+
+Prometheus collects metrics from these services. Grafana displays the
+metrics. Prometheus alerts identify important failures.
+
+============================================================ PART 2 —
+LOCAL PC PREPARATION
+============================================================
+
+2.1 Install the required software
+
+On the Windows development PC, install:
+
+-   Git
+-   Visual Studio Code
+-   Python
+-   Node.js
+-   Docker Desktop
+
+Verify Git:
+
+PowerShell: git –version
+
+Verify Python:
+
+    python --version
+
+Verify Node.js:
+
+    node --version
+
+Verify npm:
+
+    npm --version
+
+Verify Docker:
+
+    docker --version
+
+Verify Docker Compose:
+
+    docker compose version
+
+2.2 What is Git?
+
+Git is a version-control system.
+
+It records changes to files over time.
+
+Instead of having:
+
+project-final project-final2 project-final-new project-final-really-new
+
+Git lets us maintain a controlled history.
+
+Important Git terms:
+
+Repository: A project managed by Git.
+
+Commit: A saved snapshot of changes.
+
+Branch: A line of development. We use the main branch for production.
+
+Remote: A remote Git repository such as GitHub.
+
+Push: Upload local commits to the remote repository.
+
+Pull: Download and integrate remote changes.
+
+Clone: Download an existing repository to a computer.
+
+2.3 What is GitHub?
+
+GitHub is an online platform for hosting Git repositories.
+
+Git manages version history locally. GitHub stores the repository
+remotely and provides collaboration, source control, Actions, deploy
+keys, secrets, and other services.
+
+============================================================ PART 3 —
+CREATE THE PROJECT LOCALLY
+============================================================
+
+3.1 Create the project folder
+
+Example Windows folder:
+
+    D:\DevOps\Projects\Investment tracker\investment-tracker
+
+PowerShell:
+
+    cd "D:\DevOps\Projects\Investment tracker"
+    mkdir investment-tracker
+    cd investment-tracker
+
+Open it in VS Code:
+
+    code .
+
+3.2 Create the frontend
+
+The frontend is the browser-facing application.
+
+If starting a new React/Vite frontend:
+
+    npm create vite@latest frontend
+
+Choose:
+
+    Framework: React
+    Variant: JavaScript
+
+Then:
+
+    cd frontend
+    npm install
+    npm run dev
+
+Vite will normally show a local address such as:
+
+    http://localhost:5173
+
+3.3 What is React?
+
+React is a JavaScript library for building user interfaces.
+
+A React application is made from reusable components.
+
+Example concepts:
+
+-   Component
+-   State
+-   Props
+-   Event
+-   API request
+-   Browser rendering
+
+3.4 What is Vite?
+
+Vite is a modern frontend development/build tool.
+
+During development it provides a fast local development server.
+
+During production it builds the frontend into files that can be served
+by the application container.
+
+============================================================ PART 4 —
+CREATE THE BACKEND API
+============================================================
+
+4.1 What is an API?
+
+API means Application Programming Interface.
+
+An API allows one program to communicate with another.
+
+In this project:
+
+Browser | | HTTP request v FastAPI | v PostgreSQL
+
+For example:
+
+GET /stocks
+
+means the client is requesting stock information from the backend.
+
+4.2 What is FastAPI?
+
+FastAPI is a Python web framework for building APIs.
+
+It provides:
+
+-   HTTP endpoints
+-   Request handling
+-   Validation
+-   Automatic API documentation
+-   High performance
+-   Python type-hint integration
+
+4.3 Create a Python virtual environment
+
+From the backend folder:
+
+    python -m venv venv
+
+Activate it on Windows PowerShell:
+
+    .\venv\Scripts\Activate.ps1
+
+Install required packages.
+
+The exact requirements depend on the application code.
+
+A typical installation might include:
+
+    pip install fastapi uvicorn psycopg2-binary
+
+Save dependencies:
+
+    pip freeze > requirements.txt
+
+4.4 Run the backend locally
+
+A typical FastAPI application can be started with:
+
+    uvicorn main:app --reload
+
+The API may then be available at:
+
+    http://localhost:8000
+
+FastAPI documentation is normally available at:
+
+    http://localhost:8000/docs
+
+4.5 Test the backend
+
+Test the health endpoint if it exists:
+
+PowerShell:
+
+    Invoke-WebRequest http://localhost:8000/health
+
+Or open:
+
+    http://localhost:8000/health
+
+Expected response:
+
+    {"status":"ok"}
+
+Do not continue to deployment until the application works locally.
+
+============================================================ PART 5 —
+CONNECT FRONTEND AND BACKEND
+============================================================
+
+5.1 Local API URL
+
+During local development, the frontend can communicate with:
+
+    http://localhost:8000
+
+The frontend configuration may contain something similar to:
+
+    VITE_API_URL=http://localhost:8000
+
+5.2 Why environment variables matter
+
+An environment variable allows the same application code to use
+different configuration values in different environments.
+
+Example:
+
+Local:
+
+    VITE_API_URL=http://localhost:8000
+
+Production:
+
+    VITE_API_URL=http://YOUR_SERVER_IP:8000
+
+A better production architecture routes API requests through Nginx,
+which can avoid exposing port 8000 publicly.
+
+5.3 Test the complete local application
+
+Start the backend.
+
+Start the frontend.
+
+Open:
+
+    http://localhost:5173
+
+Test:
+
+-   Login/authentication if implemented
+-   Stock operations
+-   Buy transactions
+-   Sold transactions
+-   Dashboard
+-   API communication
+-   Database-backed operations
+
+Fix local problems before deployment.
+
+============================================================ PART 6 —
+DATABASE ============================================================
+
+6.1 What is PostgreSQL?
+
+PostgreSQL is a relational database management system.
+
+It stores structured information in tables.
+
+Typical concepts:
+
+Database: A logical collection of data.
+
+Table: A structured set of records.
+
+Row: One record.
+
+Column: One field/property.
+
+Primary key: A unique identifier for a record.
+
+Foreign key: A relationship between tables.
+
+Transaction: A controlled database operation.
+
+6.2 Local PostgreSQL
+
+For local development you can either install PostgreSQL directly or use
+Docker.
+
+Using Docker is convenient because the same database technology can
+later be used in production.
+
+6.3 Example PostgreSQL Docker service
+
+The production project uses PostgreSQL 16 Alpine.
+
+A Docker Compose database service can look like:
+
+    db:
+      image: postgres:16-alpine
+      environment:
+        POSTGRES_DB: tracker
+        POSTGRES_USER: tracker
+        POSTGRES_PASSWORD: CHANGE_THIS_PASSWORD
+      volumes:
+        - db_data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U tracker"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+
+IMPORTANT: Never put a real production database password in a public
+GitHub repository.
+
+Use an environment file or secret management mechanism.
+
+============================================================ PART 7 —
+DOCKERIZE THE APPLICATION
+============================================================
+
+7.1 What is Docker?
+
+Docker packages an application and its dependencies into a container.
+
+A container is an isolated runtime environment.
+
+Benefits:
+
+-   Consistent environment
+-   Repeatable deployment
+-   Dependency isolation
+-   Easier upgrades
+-   Easier recovery
+
+7.2 What is a Docker image?
+
+An image is a packaged template used to create containers.
+
+Example:
+
+    python:3.x
+
+can be used as a base image for a Python application.
+
+7.3 What is a Docker container?
+
+A container is a running instance of an image.
+
+Image: Blueprint.
+
+Container: Running instance created from the blueprint.
+
+7.4 Backend Dockerfile
+
+A typical FastAPI Dockerfile is conceptually:
+
+    FROM python:3.x-slim
+
+    WORKDIR /app
+
+    COPY requirements.txt .
+
+    RUN pip install --no-cache-dir -r requirements.txt
+
+    COPY . .
+
+    CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+The exact Python version and application entry point must match the
+project.
+
+7.5 Frontend Dockerfile
+
+The frontend Dockerfile depends on how the production frontend is
+served.
+
+A common approach is:
+
+1.  Build the React application with Node.
+2.  Serve the generated files with a lightweight web server.
+
+The final Dockerfile should be tested locally before production
+deployment.
+
+============================================================ PART 8 —
+DOCKER COMPOSE
+============================================================
+
+8.1 What is Docker Compose?
+
+Docker Compose lets us define multiple containers in one YAML file.
+
+Instead of manually starting:
+
+-   PostgreSQL
+-   Backend
+-   Frontend
+
+we define them in docker-compose.yml.
+
+Then run:
+
+    docker compose up -d
+
+8.2 Production-style Compose structure
+
+The project contains:
+
+    db
+    backend
+    frontend
+
+The database has persistent storage.
+
+The backend connects to the database using the Compose service name.
+
+Important:
+
+Inside the Docker Compose network:
+
+    db
+
+is the database hostname.
+
+Therefore the backend DATABASE_URL should use:
+
+    db:5432
+
+rather than:
+
+    localhost:5432
+
+8.3 Example relationship
+
+Backend:
+
+    DATABASE_URL=postgresql://USER:PASSWORD@db:5432/tracker
+
+Why “db”?
+
+Because “db” is the Compose service name.
+
+8.4 Test Compose locally
+
+From the project root:
+
+    docker compose up -d --build
+
+Check containers:
+
+    docker compose ps
+
+View logs:
+
+    docker compose logs
+
+Backend logs:
+
+    docker compose logs backend
+
+Frontend logs:
+
+    docker compose logs frontend
+
+Database logs:
+
+    docker compose logs db
+
+8.5 Test the local containers
+
+Test:
+
+    http://localhost:5173
+
+Backend:
+
+    http://localhost:8000
+
+Health:
+
+    http://localhost:8000/health
+
+If all work correctly, stop them when finished:
+
+    docker compose down
+
+Do NOT use:
+
+    docker compose down -v
+
+unless you intentionally want to delete the database volume/data.
+
+============================================================ PART 9 —
+GIT INITIALIZATION
+============================================================
+
+9.1 Create .gitignore
+
+Create:
+
+    .gitignore
+
+Typical entries include:
+
+    .env
+    venv/
+    __pycache__/
+    node_modules/
+    .pytest_cache/
+    *.pyc
+
+Do not commit:
+
+-   passwords
+-   private keys
+-   API secrets
+-   local virtual environments
+-   node_modules
+
+9.2 Initialize Git
+
+From the project root:
+
+    git init
+
+9.3 Configure Git identity
+
+    git config user.name "YOUR NAME"
+    git config user.email "YOUR_EMAIL"
+
+9.4 Check status
+
+    git status
+
+9.5 First commit
+
+    git add .
+    git commit -m "Initial Investment Tracker project"
+
+============================================================ PART 10 —
+CREATE THE GITHUB REPOSITORY
+============================================================
+
+10.1 Create repository
+
+Open GitHub in a browser.
+
+Create a new repository.
+
+Example name:
+
+    Investment-tracker
+
+Choose the required visibility.
+
+If the repository is intended to be public, verify that no secrets are
+present before publishing.
+
+10.2 Connect local Git repository
+
+GitHub will provide the repository URL.
+
+SSH format:
+
+    git@github.com:YOUR_USERNAME/Investment-tracker.git
+
+Add it:
+
+    git remote add origin git@github.com:YOUR_USERNAME/Investment-tracker.git
+
+10.3 Verify remote
+
+    git remote -v
+
+10.4 Push to GitHub
+
+If the local branch is main:
+
+    git branch -M main
+    git push -u origin main
+
+Verify the files appear on GitHub.
+
+10.5 Future GitHub pushes
+
+After making changes:
+
+    git status
+    git add .
+    git commit -m "Describe the change"
+    git push origin main
+
+============================================================ PART 11 —
+CREATE THE ORACLE CLOUD ACCOUNT
+============================================================
+
+11.1 What is Oracle Cloud?
+
+Oracle Cloud Infrastructure (OCI) is a cloud platform that provides
+virtual machines, networking, storage, databases, and other
+infrastructure services.
+
+We use OCI to host the production application and monitoring
+infrastructure.
+
+11.2 Create the account
+
+Create an Oracle Cloud account and complete the required
+identity/payment verification steps.
+
+The exact Oracle Cloud interface may change.
+
+After signing in, locate:
+
+    Compute
+    Virtual Machines / Instances
+
+and:
+
+    Networking
+    Virtual Cloud Networks
+
+============================================================ PART 12 —
+CREATE THE PRODUCTION VM
+============================================================
+
+12.1 What is a VM?
+
+VM means Virtual Machine.
+
+A VM is a virtual computer running inside a cloud provider’s
+infrastructure.
+
+Our production VM runs Ubuntu and hosts:
+
+-   Docker
+-   Docker Compose
+-   Nginx
+-   Investment Tracker containers
+-   Node Exporter
+-   cAdvisor
+
+12.2 Create the VM
+
+In OCI:
+
+1.  Open Compute.
+2.  Create an instance.
+3.  Select Ubuntu.
+4.  Choose an appropriate shape.
+5.  Configure networking.
+6.  Add an SSH public key.
+7.  Create the instance.
+
+Record:
+
+-   Public IP
+-   Private IP
+-   Username
+-   SSH key location
+
+12.3 Why SSH?
+
+SSH means Secure Shell.
+
+SSH provides encrypted remote command-line access to a Linux server.
+
+Example Windows command:
+
+    ssh -i "C:\path\to\private-key.key" ubuntu@YOUR_VM_IP
+
+12.4 Protect the private key
+
+The private key must remain private.
+
+Do not:
+
+-   Upload it to GitHub.
+-   Put it in README.md.
+-   Send it to other people.
+-   Commit it into Git.
+-   Paste it into public websites.
+
+============================================================ PART 13 —
+CONFIGURE OCI NETWORKING
+============================================================
+
+13.1 What is a security rule?
+
+A security rule controls network traffic entering or leaving a cloud
+resource.
+
+For production, open only the ports that are actually required.
+
+13.2 Production ports
+
+Typical production requirements:
+
+TCP 22 SSH administration.
+
+TCP 80 HTTP web application.
+
+TCP 443 HTTPS, if configured.
+
+Avoid publicly exposing:
+
+    5432 PostgreSQL
+    8000 backend API
+    5173 frontend development server
+    9100 Node Exporter
+    8080 cAdvisor
+
+These should remain private wherever possible.
+
+13.3 Configure SSH
+
+OCI normally provides network security configuration through:
+
+-   VCN
+-   Subnet
+-   Security List and/or Network Security Group
+
+Verify SSH port 22 is allowed from the required administration source.
+
+============================================================ PART 14 —
+PREPARE THE PRODUCTION VM
+============================================================
+
+14.1 Connect
+
+From Windows PowerShell:
+
+    ssh -i "C:\path\to\key.key" ubuntu@YOUR_PRODUCTION_IP
+
+14.2 Update Ubuntu
+
+    sudo apt update
+    sudo apt upgrade -y
+
+14.3 Install basic tools
+
+    sudo apt install -y git curl ca-certificates
+
+14.4 Install Docker
+
+Use the current official Docker installation instructions for the Ubuntu
+version being deployed.
+
+After installation, verify:
+
+    docker --version
+    docker compose version
+
+14.5 Allow Ubuntu user to run Docker
+
+If required:
+
+    sudo usermod -aG docker $USER
+
+Then log out and log back in.
+
+Verify:
+
+    docker ps
+
+If it works without sudo, the configuration is correct.
+
+============================================================ PART 15 —
+CONNECT THE PRODUCTION VM TO GITHUB
+============================================================
+
+15.1 Why use SSH between VM and GitHub?
+
+The production VM must retrieve the repository during deployment.
+
+Instead of using a GitHub password, use an SSH key.
+
+The VM has:
+
+    private SSH key
+
+GitHub has:
+
+    matching public key
+
+15.2 Generate deployment key
+
+On the production VM:
+
+    ssh-keygen -t ed25519 -C "oracle-production-vm"
+
+When asked for the file name, use a dedicated key path such as:
+
+    /home/ubuntu/.ssh/github_actions
+
+Do not expose the private key.
+
+15.3 Display public key
+
+    cat /home/ubuntu/.ssh/github_actions.pub
+
+Copy ONLY the public key.
+
+15.4 Add GitHub deploy key
+
+On GitHub:
+
+Repository Settings Deploy keys Add deploy key
+
+Use an appropriate title such as:
+
+    Oracle VM - ubuntu
+
+Paste the public key.
+
+Enable write access only if the VM genuinely needs to push changes.
+
+For a deployment server that only pulls code, read-only access is
+preferable.
+
+15.5 Configure SSH
+
+Create/edit:
+
+    nano ~/.ssh/config
+
+Example:
+
+    Host github.com
+        HostName github.com
+        User git
+        IdentityFile ~/.ssh/github_actions
+        IdentitiesOnly yes
+
+15.6 Test GitHub SSH
+
+    ssh -T git@github.com
+
+A successful response identifies the GitHub account/repository access.
+
+Then clone:
+
+    cd /home/ubuntu
+    git clone git@github.com:YOUR_USERNAME/Investment-tracker.git
+
+Enter the project:
+
+    cd Investment-tracker
+
+============================================================ PART 16 —
+CONFIGURE PRODUCTION ENVIRONMENT
+============================================================
+
+16.1 What is an environment variable?
+
+An environment variable is configuration provided to an application at
+runtime rather than hard-coded into the source code.
+
+Examples:
+
+    DATABASE_URL
+    SECRET_KEY
+    VITE_API_URL
+
+16.2 Create production environment file
+
+Example:
+
+    nano .env
+
+The exact variables must match the application’s code.
+
+Example:
+
+    DATABASE_URL=postgresql://USER:PASSWORD@db:5432/tracker
+
+Protect it:
+
+    chmod 600 .env
+
+16.3 Verify .env is ignored
+
+    git status
+
+The .env file should NOT appear as an untracked file.
+
+If it does, fix .gitignore before pushing anything.
+
+============================================================ PART 17 —
+DEPLOY THE APPLICATION MANUALLY FIRST
+============================================================
+
+17.1 Why manual deployment first?
+
+CI/CD should not be the first thing used on an untested server.
+
+First prove:
+
+-   Docker works.
+-   Compose works.
+-   Database works.
+-   Backend works.
+-   Frontend works.
+-   Nginx works.
+-   Health endpoint works.
+
+Then automate the same process.
+
+17.2 Start application
+
+From:
+
+    /home/ubuntu/Investment-tracker
+
+run:
+
+    docker compose up -d --build
+
+17.3 Check status
+
+    docker compose ps
+
+17.4 Check logs
+
+    docker compose logs --tail=100
+
+17.5 Test API locally on server
+
+    curl http://127.0.0.1:8000/health
+
+Expected:
+
+    {"status":"ok"}
+
+============================================================ PART 18 —
+CONFIGURE NGINX
+============================================================
+
+18.1 What is Nginx?
+
+Nginx is a web server and reverse proxy.
+
+A reverse proxy receives a client request and forwards it to an internal
+service.
+
+Example:
+
+Internet | v Nginx :80 | +–> Frontend :5173 | +–> Backend :8000
+
+18.2 Install Nginx
+
+    sudo apt install -y nginx
+
+18.3 Configure site
+
+Create/edit the appropriate Nginx configuration:
+
+    sudo nano /etc/nginx/sites-available/investment-tracker
+
+Example configuration used by the project:
+
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name _;
+
+        location / {
+            proxy_pass http://127.0.0.1:5173;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location ~ ^/(auth|stocks|buy-transactions|sold-transactions|prices|dashboard|health)(/|$) {
+            proxy_pass http://127.0.0.1:8000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+18.4 Enable configuration
+
+    sudo ln -s /etc/nginx/sites-available/investment-tracker /etc/nginx/sites-enabled/investment-tracker
+
+Remove the default site if necessary:
+
+    sudo rm /etc/nginx/sites-enabled/default
+
+18.5 Test configuration
+
+    sudo nginx -t
+
+Expected:
+
+    syntax is ok
+    test is successful
+
+18.6 Reload Nginx
+
+    sudo systemctl reload nginx
+
+18.7 Test application
+
+From the server:
+
+    curl -I http://127.0.0.1/
+
+Test health:
+
+    curl http://127.0.0.1/health
+
+From a browser:
+
+    http://YOUR_PRODUCTION_IP
+
+============================================================ PART 19 —
+ADD SERVER MONITORING
+============================================================
+
+19.1 Why monitor the server?
+
+A production application can appear healthy while the underlying server
+has problems.
+
+Examples:
+
+-   Disk fills up.
+-   RAM becomes exhausted.
+-   CPU becomes overloaded.
+-   Server stops responding.
+-   Network problems occur.
+
+Therefore we monitor the Linux server separately from the application.
+
+19.2 What is Node Exporter?
+
+Node Exporter is a Prometheus exporter for Linux system metrics.
+
+It exposes information such as:
+
+-   CPU
+-   Memory
+-   Disk
+-   Filesystems
+-   Network
+-   Uptime
+
+Prometheus reads these metrics.
+
+19.3 Install Node Exporter
+
+Node Exporter can be installed as a container.
+
+The important production requirement is that it must be reachable by the
+monitoring VM while not unnecessarily exposed to the public Internet.
+
+Bind it to the production VM’s private IP where appropriate.
+
+Example target:
+
+    10.0.0.221:9100
+
+Do not expose port 9100 publicly.
+
+============================================================ PART 20 —
+ADD cADVISOR
+============================================================
+
+20.1 What is cAdvisor?
+
+cAdvisor means Container Advisor.
+
+It collects Docker/container resource information.
+
+It can provide:
+
+-   Container CPU usage
+-   Container memory
+-   Container filesystem activity
+-   Container start time
+-   Container resource metrics
+
+20.2 Why use cAdvisor?
+
+Node Exporter monitors the Linux host.
+
+cAdvisor monitors the containers.
+
+Together they provide:
+
+HOST | +–> Node Exporter | +–> CPU +–> RAM +–> Disk +–> Network
+
+CONTAINERS | +–> cAdvisor | +–> container memory +–> container activity
++–> container information
+
+============================================================ PART 21 —
+CREATE A SEPARATE MONITORING VM
+============================================================
+
+21.1 Why a separate monitoring VM?
+
+If monitoring runs only on the same server as the application, a
+complete production-server failure can also take down the monitoring
+system.
+
+A separate VM gives the monitoring system independence.
+
+The monitoring VM hosts:
+
+-   Prometheus
+-   Grafana
+-   Blackbox Exporter
+
+21.2 Create monitoring VM
+
+In OCI:
+
+1.  Create another Ubuntu VM.
+2.  Give it a separate private/public IP.
+3.  Add an SSH key.
+4.  Configure network rules.
+5.  Connect through SSH.
+
+21.3 Example SSH command
+
+Windows PowerShell:
+
+    ssh -i "C:\Users\Admin\Downloads\YOUR_MONITORING_KEY.key" ubuntu@YOUR_MONITORING_IP
+
+============================================================ PART 22 —
+PROMETHEUS ============================================================
+
+22.1 What is Prometheus?
+
+Prometheus is a monitoring and time-series database system.
+
+It periodically requests metrics from monitored endpoints.
+
+This is called scraping.
+
+Example:
+
+Prometheus | | HTTP GET /metrics v Node Exporter | v CPU / RAM / Disk
+metrics
+
+22.2 Prometheus terminology
+
+Target: An endpoint Prometheus monitors.
+
+Scrape: The process of collecting metrics from a target.
+
+Metric: A numerical measurement.
+
+Label: Metadata attached to a metric.
+
+Time series: A metric value tracked over time.
+
+Exporter: A service that exposes metrics in a format Prometheus
+understands.
+
+============================================================ PART 23 —
+BLACKBOX EXPORTER
+============================================================
+
+23.1 What is Blackbox Exporter?
+
+Blackbox Exporter checks a service from an external perspective.
+
+Instead of asking the application:
+
+“Are you healthy?”
+
+the monitoring system asks:
+
+“Can I reach the application successfully?”
+
+It can probe HTTP, HTTPS, TCP and other protocols depending on
+configuration.
+
+23.2 Why use it?
+
+Node Exporter can tell us:
+
+“The production server is reachable.”
+
+API metrics can tell us:
+
+“The API metrics endpoint is reachable.”
+
+Blackbox monitoring adds:
+
+“The public application health endpoint can actually be reached
+successfully.”
+
+23.3 Example configuration
+
+A simple HTTP probe module:
+
+    modules:
+      http_2xx:
+        prober: http
+        timeout: 5s
+        http:
+          method: GET
+
+============================================================ PART 24 —
+MONITORING DOCKER COMPOSE
+============================================================
+
+24.1 Create monitoring directory
+
+On monitoring VM:
+
+    mkdir -p ~/monitoring
+    cd ~/monitoring
+
+24.2 Create Compose file
+
+    nano docker-compose.yml
+
+The monitoring stack should contain:
+
+-   Prometheus
+-   Grafana
+-   Blackbox Exporter
+
+Do not unnecessarily duplicate Node Exporter or cAdvisor on the
+monitoring VM when the production VM is already being monitored.
+
+This avoids duplicate metrics and confusion.
+
+============================================================ PART 25 —
+PROMETHEUS CONFIGURATION
+============================================================
+
+25.1 Create configuration directory
+
+    mkdir -p ~/monitoring/prometheus
+
+25.2 Create prometheus.yml
+
+    nano ~/monitoring/prometheus/prometheus.yml
+
+Production configuration used by this project:
+
+    global:
+      scrape_interval: 15s
+
+    rule_files:
+      - /etc/prometheus/alerts.yml
+
+    scrape_configs:
+
+      - job_name: "prometheus"
+        static_configs:
+          - targets: ["prometheus:9090"]
+
+      - job_name: "node-exporter"
+        static_configs:
+          - targets: ["10.0.0.221:9100"]
+
+      - job_name: "cadvisor"
+        static_configs:
+          - targets: ["10.0.0.221:8080"]
+
+      - job_name: "investment-tracker-health"
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+              - http://130.210.42.159/health
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: blackbox-exporter:9115
+
+      - job_name: "investment-tracker-api"
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["130.210.42.159:8000"]
+
+IMPORTANT: Replace private IP and public IP values when rebuilding the
+infrastructure.
+
+============================================================ PART 26 —
+API PROMETHEUS METRICS
+============================================================
+
+26.1 Why instrument the API?
+
+Infrastructure monitoring tells us whether the server is alive.
+
+It does not tell us enough about application behavior.
+
+We therefore add Prometheus instrumentation to FastAPI.
+
+26.2 Install instrumentation library
+
+In backend requirements:
+
+    prometheus-fastapi-instrumentator==7.1.0
+
+26.3 Add instrumentation
+
+In the FastAPI application:
+
+    from prometheus_fastapi_instrumentator import Instrumentator
+
+    app = FastAPI(title="Investment Tracker API")
+
+    Instrumentator().instrument(app).expose(app)
+
+26.4 Result
+
+The API exposes:
+
+    /metrics
+
+Prometheus can scrape this endpoint.
+
+26.5 Example metric query
+
+To monitor API 5xx error rate:
+
+    sum(
+      rate(http_requests_total{job="investment-tracker-api",status="5xx"}[5m])
+    )
+
+A graph with no data can be normal when there have been no 5xx
+responses.
+
+============================================================ PART 27 —
+MONITORING ALERTS
+============================================================
+
+27.1 What is an alert rule?
+
+An alert rule is a condition that tells Prometheus:
+
+“If this condition remains true for a defined amount of time, create an
+alert.”
+
+27.2 Create alerts.yml
+
+    nano ~/monitoring/prometheus/alerts.yml
+
+27.3 Production alerts
+
+    groups:
+      - name: investment-tracker
+        rules:
+
+          - alert: ProductionServerDown
+            expr: up{job="node-exporter"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Production server is down"
+              description: "Prometheus cannot reach the Investment Tracker production server's Node Exporter."
+
+          - alert: InvestmentTrackerAPIDown
+            expr: up{job="investment-tracker-api"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Investment Tracker API is down"
+              description: "Prometheus cannot reach the Investment Tracker API metrics endpoint."
+
+          - alert: ProductionDiskUsageHigh
+            expr: |
+              100 * (
+                1 - (
+                  node_filesystem_avail_bytes{
+                    job="node-exporter",
+                    instance="10.0.0.221:9100",
+                    mountpoint="/",
+                    fstype!="rootfs"
+                  }
+                  /
+                  node_filesystem_size_bytes{
+                    job="node-exporter",
+                    instance="10.0.0.221:9100",
+                    mountpoint="/",
+                    fstype!="rootfs"
+                  }
+                )
+              ) > 85
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Production disk usage is high"
+              description: "The production server root filesystem has been above 85% usage for 10 minutes."
+
+27.4 Validate alert rules
+
+If promtool is available inside the Prometheus container:
+
+    docker exec prometheus promtool check rules /etc/prometheus/alerts.yml
+
+Expected:
+
+    SUCCESS: 3 rules found
+
+IMPORTANT: Do not simulate alerts by deliberately damaging the
+production application.
+
+============================================================ PART 28 —
+START MONITORING STACK
+============================================================
+
+28.1 Start containers
+
+From monitoring VM:
+
+    cd ~/monitoring
+    docker compose up -d
+
+28.2 Check status
+
+    docker compose ps
+
+28.3 Check logs
+
+    docker compose logs --tail=100
+
+28.4 Test Prometheus
+
+On the monitoring VM:
+
+    curl http://localhost:9090/-/healthy
+
+28.5 Test Grafana
+
+    curl http://localhost:3000/api/health
+
+A healthy response includes:
+
+    "database": "ok"
+
+and a Grafana version.
+
+============================================================ PART 29 —
+CONFIGURE GRAFANA
+============================================================
+
+29.1 What is Grafana?
+
+Grafana is a visualization and dashboard platform.
+
+Prometheus stores/serves metrics.
+
+Grafana displays those metrics in dashboards.
+
+Relationship:
+
+Prometheus | | metrics v Grafana | v Charts / Tables / Stat panels
+
+29.2 Open Grafana safely during initial setup
+
+Do not immediately expose Grafana publicly.
+
+Use an SSH tunnel from Windows.
+
+Example:
+
+    ssh -i "C:\path\to\monitoring-key.key" -L 3000:127.0.0.1:3000 ubuntu@YOUR_MONITORING_IP
+
+Then open:
+
+    http://localhost:3000
+
+The SSH tunnel means:
+
+Windows localhost:3000 | | encrypted SSH tunnel v Monitoring VM
+localhost:3000
+
+29.3 Configure Prometheus datasource
+
+In Grafana:
+
+    Connections
+        Data sources
+            Add data source
+                Prometheus
+
+For Docker Compose, the Prometheus URL is normally:
+
+    http://prometheus:9090
+
+Save and test the connection.
+
+============================================================ PART 30 —
+BUILD THE GRAFANA DASHBOARD
+============================================================
+
+30.1 Dashboard purpose
+
+The dashboard provides a client-friendly operational view of the
+production environment.
+
+The final dashboard contains 11 panels:
+
+1.  Disk Usage
+2.  Docker Monitoring
+3.  Docker Container Memory
+4.  Docker Container Start Time
+5.  API Request/Rate
+6.  API 5xx Error Rate
+7.  Health/Blackbox Probe
+8.  CPU
+9.  Uptime
+10. Memory
+11. Network Incoming
+
+30.2 Why these panels?
+
+Disk: Shows filesystem capacity.
+
+Docker Monitoring: Shows container activity/resource behavior.
+
+Container Memory: Shows container memory usage.
+
+Container Start Time: Helps identify recent restarts/redeployments.
+
+API Request Rate: Shows application activity.
+
+API 5xx: Shows server-side API errors.
+
+Blackbox: Shows application reachability.
+
+CPU: Shows host processor utilization.
+
+Uptime: Shows server availability duration.
+
+Memory: Shows host memory usage.
+
+Network: Shows network activity.
+
+30.3 Keep dashboards useful
+
+Avoid filling the dashboard with unnecessary metrics.
+
+The objective is operational visibility, not maximum metric count.
+
+============================================================ PART 31 —
+GRAFANA PUBLIC DASHBOARD
+============================================================
+
+31.1 What is a public dashboard?
+
+Grafana Public Dashboards allow a dashboard to be viewed through a
+special link without requiring the viewer to log in.
+
+This is useful for a client-facing monitoring view.
+
+31.2 Important security distinction
+
+Public Dashboard access is different from enabling global anonymous
+Grafana access.
+
+Do NOT enable:
+
+    [auth.anonymous]
+
+unless there is a specific reason.
+
+A public dashboard should be used only for the intended dashboard.
+
+31.3 Create public dashboard
+
+In Grafana:
+
+    Open dashboard
+        Share
+            Share external
+
+Accept the warning that anyone with the link can access the dashboard.
+
+Choose the required time range and other display settings.
+
+Create the public link.
+
+31.4 Example final public dashboard URL
+
+The project currently uses:
+
+    http://132.226.189.195:3000/public-dashboards/baf9c5ba69ed43d482f08284a1cda3e3
+
+The token/path will be different if the dashboard is recreated.
+
+============================================================ PART 32 —
+OPEN GRAFANA PORT ONLY WHEN REQUIRED
+============================================================
+
+32.1 Why was port 3000 opened?
+
+Grafana listens on:
+
+    TCP 3000
+
+The public dashboard cannot be accessed from the Internet if OCI blocks
+the port.
+
+Therefore an OCI ingress rule was added for TCP 3000.
+
+32.2 OCI rule
+
+Monitoring VM VCN/subnet/network security:
+
+    Source CIDR:
+        0.0.0.0/0
+
+    Protocol:
+        TCP
+
+    Destination port:
+        3000
+
+Description:
+
+    Grafana client dashboard
+
+32.3 Do NOT expose Prometheus
+
+Prometheus uses:
+
+    TCP 9090
+
+Keep port 9090 private.
+
+Do not add:
+
+    0.0.0.0/0 -> TCP 9090
+
+32.4 Security warning
+
+Port 3000 exposes the Grafana web service to the Internet.
+
+The current public dashboard link works, but the long-term professional
+setup should use:
+
+    Domain
+       +
+    HTTPS
+       +
+    Reverse proxy
+       +
+    Controlled public dashboard access
+
+A raw public IP and port is suitable for testing/demo access but should
+not automatically be treated as the final hardened production
+architecture.
+
+============================================================ PART 33 —
+VERIFY MONITORING
+============================================================
+
+33.1 Check Prometheus targets
+
+Open Prometheus through a secure tunnel if necessary:
+
+    http://localhost:9090
+
+Go to:
+
+    Status
+        Targets
+
+Expected targets include:
+
+    prometheus
+    node-exporter
+    cadvisor
+    investment-tracker-health
+    investment-tracker-api
+
+Targets should show healthy/up status.
+
+33.2 Useful PromQL checks
+
+Node Exporter:
+
+    up{job="node-exporter"}
+
+Expected:
+
+    1
+
+API:
+
+    up{job="investment-tracker-api"}
+
+Expected:
+
+    1
+
+Blackbox:
+
+    probe_success
+
+Expected:
+
+    1
+
+33.3 Disk usage
+
+The dashboard calculates production disk usage from filesystem metrics.
+
+The alert threshold is:
+
+    > 85%
+
+for:
+
+    10 minutes
+
+33.4 CPU
+
+Example:
+
+    100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+33.5 Memory
+
+Example:
+
+    100 * (
+      1 -
+      node_memory_MemAvailable_bytes
+      /
+      node_memory_MemTotal_bytes
+    )
+
+============================================================ PART 34 —
+CI/CD WITH GITHUB ACTIONS
+============================================================
+
+34.1 What is CI/CD?
+
+CI means Continuous Integration.
+
+It means changes are integrated into the shared repository regularly and
+can be automatically tested.
+
+CD means Continuous Delivery/Deployment.
+
+In this project, a push to main automatically triggers deployment to the
+production VM.
+
+34.2 Why automate deployment?
+
+Without CI/CD:
+
+Developer | v SSH server | v git pull | v docker compose build | v
+docker compose up
+
+With CI/CD:
+
+Developer | v git push | v GitHub Actions | v Production deployment
+
+34.3 Create workflow
+
+Create:
+
+    .github/workflows/deploy.yml
+
+34.4 Final deployment workflow
+
+    name: Deploy Investment Tracker
+
+    on:
+      push:
+        branches:
+          - main
+
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Deploy to Oracle VM
+            env:
+              SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+              SERVER_HOST: ${{ secrets.SERVER_HOST }}
+              SSH_USER: ${{ secrets.SSH_USER }}
+            run: |
+              mkdir -p ~/.ssh
+              printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+              chmod 600 ~/.ssh/deploy_key
+
+              ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+
+              ssh -i ~/.ssh/deploy_key \
+                -o ConnectTimeout=30 \
+                -o ServerAliveInterval=30 \
+                -o ServerAliveCountMax=20 \
+                "$SSH_USER@$SERVER_HOST" << 'EOF'
+                cd /home/ubuntu/Investment-tracker
+
+                git fetch origin main
+                git reset --hard origin/main
+
+                docker compose up -d --build
+
+                echo "Waiting for API to start..."
+                for i in {1..12}; do
+                  if curl -fsS http://127.0.0.1:8000/health > /dev/null; then
+                    echo "API health check passed."
+                    exit 0
+                  fi
+
+                  echo "API not ready yet. Waiting 5 seconds..."
+                  sleep 5
+                done
+
+                echo "ERROR: API health check failed."
+                docker compose ps
+                exit 1
+              EOF
+
+============================================================ PART 35 —
+GITHUB ACTIONS SECRETS
+============================================================
+
+35.1 What is a GitHub Actions secret?
+
+A secret is an encrypted value supplied to a workflow.
+
+Secrets should be used for:
+
+-   Private SSH keys
+-   Passwords
+-   Tokens
+-   Cloud credentials
+
+35.2 Create these repository secrets
+
+GitHub:
+
+    Repository
+        Settings
+            Secrets and variables
+                Actions
+
+Create:
+
+    SSH_PRIVATE_KEY
+    SSH_USER
+    SERVER_HOST
+
+35.3 Values
+
+SSH_PRIVATE_KEY:
+
+The private key used by GitHub Actions to connect to the production VM.
+
+SSH_USER:
+
+    ubuntu
+
+SERVER_HOST:
+
+    YOUR_PRODUCTION_PUBLIC_IP
+
+35.4 Why two different SSH relationships exist
+
+There are two separate SSH relationships.
+
+A. Production VM -> GitHub
+
+Used when the production VM runs:
+
+    git fetch origin main
+
+This requires the VM’s GitHub deploy key.
+
+B. GitHub Actions -> Production VM
+
+Used when GitHub Actions connects to the VM.
+
+This requires the GitHub Actions SSH private key stored as:
+
+    SSH_PRIVATE_KEY
+
+These are separate credentials and should not be confused.
+
+============================================================ PART 36 —
+TEST CI/CD ============================================================
+
+36.1 Commit workflow
+
+On Windows:
+
+    cd "D:\DevOps\Projects\Investment tracker\investment-tracker"
+
+Then:
+
+    git status
+    git add .github/workflows/deploy.yml
+    git commit -m "Add GitHub Actions deployment workflow"
+    git push origin main
+
+36.2 Watch GitHub Actions
+
+On GitHub:
+
+    Repository
+        Actions
+
+Open the deployment workflow.
+
+Watch each step.
+
+36.3 What should happen?
+
+GitHub Actions:
+
+1.  Starts an Ubuntu runner.
+2.  Loads SSH secret.
+3.  Connects to production VM.
+4.  Changes to project directory.
+5.  Fetches origin/main.
+6.  Resets the production checkout to origin/main.
+7.  Runs Docker Compose build/start.
+8.  Waits for the API.
+9.  Tests /health.
+10. Reports success or failure.
+
+36.4 Why can deployment time vary?
+
+Docker uses build caching.
+
+If a change affects only README.md, Docker may reuse existing image
+layers and deployment can be much faster.
+
+If application dependencies or source files change, more Docker layers
+may need to rebuild.
+
+Therefore:
+
+    Short deployment
+
+does NOT necessarily mean fewer deployment steps.
+
+It can simply mean Docker reused its cache.
+
+============================================================ PART 37 —
+VERIFY PRODUCTION AFTER DEPLOYMENT
+============================================================
+
+After every important deployment:
+
+1.  Open the application.
+
+2.  Test login if applicable.
+
+3.  Test important application functions.
+
+4.  Check:
+
+        /health
+
+5.  Check:
+
+        docker compose ps
+
+6.  Check application logs:
+
+        docker compose logs --tail=100
+
+7.  Check Prometheus targets.
+
+8.  Check Grafana dashboard.
+
+9.  Confirm no new alerts.
+
+============================================================ PART 38 —
+BACKUPS ============================================================
+
+38.1 Why backups matter
+
+A running database is not a backup.
+
+If the server, volume, filesystem, or data becomes corrupted, a separate
+backup is required.
+
+38.2 Production database backup
+
+A PostgreSQL logical backup can be created using pg_dump.
+
+Example pattern:
+
+    docker exec -t investment-tracker-db-1 \
+      pg_dump -U tracker tracker > investment-tracker-backup.sql
+
+Container names may differ.
+
+Find the current container:
+
+    docker compose ps
+
+38.3 Compress backup
+
+Example:
+
+    gzip investment-tracker-backup.sql
+
+38.4 Monitoring backups
+
+Monitoring backups should include:
+
+-   Grafana data
+-   Prometheus configuration
+-   Prometheus data
+
+Example backup directory:
+
+    ~/monitoring-backups/
+
+38.5 Example archive commands
+
+Grafana:
+
+    tar -czf grafana-backup-YYYYMMDD.tar.gz ~/monitoring/grafana/data
+
+Prometheus configuration:
+
+    tar -czf prometheus-config-YYYYMMDD.tar.gz ~/monitoring/prometheus
+
+Prometheus data:
+
+    tar -czf prometheus-data-YYYYMMDD.tar.gz ~/monitoring/prometheus-data
+
+IMPORTANT: Backup commands must be adapted to the actual volume/mount
+paths used by the Compose file.
+
+============================================================ PART 39 —
+BACKUP STORAGE
+============================================================
+
+A backup stored on the same VM is useful but not sufficient for disaster
+recovery.
+
+Prefer keeping important backups in another location, such as:
+
+-   Another cloud storage system
+-   Object storage
+-   Another server
+-   Secure offline storage
+
+The objective is:
+
+PRODUCTION FAILURE | X | BACKUP REMAINS AVAILABLE
+
+============================================================ PART 40 —
+COMMON GIT COMMANDS
+============================================================
+
+Check status:
+
+    git status
+
+See history:
+
+    git log --oneline --decorate --graph -20
+
+See remotes:
+
+    git remote -v
+
+Download remote information:
+
+    git fetch origin
+
+Pull:
+
+    git pull origin main
+
+Stage everything:
+
+    git add .
+
+Commit:
+
+    git commit -m "Description"
+
+Push:
+
+    git push origin main
+
+Check current branch:
+
+    git branch --show-current
+
+Switch to main:
+
+    git switch main
+
+============================================================ PART 41 —
+COMMON DOCKER COMMANDS
+============================================================
+
+List containers:
+
+    docker ps
+
+List all containers:
+
+    docker ps -a
+
+List images:
+
+    docker images
+
+Compose status:
+
+    docker compose ps
+
+Start:
+
+    docker compose up -d
+
+Build and start:
+
+    docker compose up -d --build
+
+Stop:
+
+    docker compose stop
+
+Start stopped services:
+
+    docker compose start
+
+Restart:
+
+    docker compose restart
+
+Logs:
+
+    docker compose logs
+
+Follow logs:
+
+    docker compose logs -f
+
+Backend logs:
+
+    docker compose logs -f backend
+
+Database logs:
+
+    docker compose logs -f db
+
+Remove containers but keep volumes:
+
+    docker compose down
+
+Dangerous:
+
+    docker compose down -v
+
+The “-v” option removes Compose volumes and can delete database data.
+
+============================================================ PART 42 —
+COMMON LINUX COMMANDS
+============================================================
+
+Current directory:
+
+    pwd
+
+List files:
+
+    ls -la
+
+Change directory:
+
+    cd DIRECTORY
+
+Create directory:
+
+    mkdir DIRECTORY
+
+Create nested directory:
+
+    mkdir -p DIRECTORY
+
+Copy:
+
+    cp SOURCE DESTINATION
+
+Move/rename:
+
+    mv SOURCE DESTINATION
+
+Remove file:
+
+    rm FILE
+
+View file:
+
+    cat FILE
+
+Edit file:
+
+    nano FILE
+
+Search text:
+
+    grep -n "text" FILE
+
+Disk usage:
+
+    df -h
+
+Directory size:
+
+    du -sh DIRECTORY
+
+Memory:
+
+    free -h
+
+CPU/process information:
+
+    top
+
+Listening ports:
+
+    ss -lntp
+
+System service status:
+
+    systemctl status SERVICE
+
+Reload service:
+
+    sudo systemctl reload SERVICE
+
+Restart service:
+
+    sudo systemctl restart SERVICE
+
+============================================================ PART 43 —
+TROUBLESHOOTING
+============================================================
+
+43.1 Application does not open
+
+Check:
+
+    docker compose ps
+
+Then:
+
+    docker compose logs --tail=100
+
+Check Nginx:
+
+    sudo nginx -t
+
+Check:
+
+    sudo systemctl status nginx
+
+Check listening ports:
+
+    ss -lntp
+
+43.2 API is down
+
+Check:
+
+    curl http://127.0.0.1:8000/health
+
+If failed:
+
+    docker compose logs backend
+
+43.3 Database is down
+
+Check:
+
+    docker compose ps
+
+Then:
+
+    docker compose logs db
+
+43.4 Frontend loads but API does not
+
+Check:
+
+-   VITE_API_URL
+-   Nginx API routing
+-   Backend container
+-   Backend health endpoint
+-   Browser developer console
+
+43.5 GitHub push fails
+
+Check:
+
+    git remote -v
+
+Check authentication.
+
+If using SSH:
+
+    ssh -T git@github.com
+
+43.6 Production VM cannot fetch GitHub
+
+Check:
+
+    ssh -T git@github.com
+
+Check:
+
+    ls -la ~/.ssh
+
+Check SSH config:
+
+    cat ~/.ssh/config
+
+Check the GitHub deploy key.
+
+Do not replace the private key with a password.
+
+43.7 GitHub Actions cannot SSH to production
+
+Check GitHub secrets:
+
+    SSH_PRIVATE_KEY
+    SSH_USER
+    SERVER_HOST
+
+Check OCI port 22.
+
+Check that the corresponding public key is present in:
+
+    ~/.ssh/authorized_keys
+
+on the production VM.
+
+43.8 Grafana is not reachable
+
+On monitoring VM:
+
+    docker compose ps
+
+Check:
+
+    curl http://localhost:3000/api/health
+
+Check listening port:
+
+    ss -lntp | grep 3000
+
+Check OCI network rules.
+
+If using an SSH tunnel:
+
+    ssh -i "KEY" -L 3000:127.0.0.1:3000 ubuntu@MONITORING_IP
+
+Then:
+
+    http://localhost:3000
+
+43.9 Grafana dashboard has no data
+
+Check Prometheus.
+
+Open:
+
+    http://localhost:9090
+
+Check:
+
+    Status -> Targets
+
+Verify that targets are UP.
+
+Then test queries directly in Prometheus.
+
+43.10 Prometheus cannot reach Node Exporter
+
+Check production VM:
+
+    ss -lntp | grep 9100
+
+Check private IP.
+
+Check OCI security rules between monitoring VM and production VM.
+
+Do not expose 9100 publicly just to make it work.
+
+43.11 Public Grafana dashboard does not open
+
+Check:
+
+1.  Grafana container is running.
+2.  Grafana listens on port 3000.
+3.  OCI allows TCP 3000.
+4.  Public dashboard has not been revoked or paused.
+5.  The public dashboard URL is correct.
+
+The public URL has this general structure:
+
+    http://MONITORING_PUBLIC_IP:3000/public-dashboards/TOKEN
+
+============================================================ PART 44 —
+SAFE PORT CHECKS
+============================================================
+
+From Windows PowerShell:
+
+    Test-NetConnection YOUR_SERVER_IP -Port 80
+
+For Grafana:
+
+    Test-NetConnection YOUR_MONITORING_IP -Port 3000
+
+For Prometheus:
+
+    Test-NetConnection YOUR_MONITORING_IP -Port 9090
+
+9090 should normally NOT be publicly reachable.
+
+For SSH:
+
+    Test-NetConnection YOUR_SERVER_IP -Port 22
+
+============================================================ PART 45 —
+PRODUCTION PORT DESIGN
+============================================================
+
+Production VM:
+
+Public: 22 SSH 80 HTTP 443 HTTPS if configured
+
+Private: 5432 PostgreSQL 8000 FastAPI 5173 frontend 9100 Node Exporter
+8080 cAdvisor
+
+Monitoring VM:
+
+Public: 22 SSH 3000 Grafana only when intentionally exposed
+
+Private: 9090 Prometheus 9115 Blackbox Exporter
+
+============================================================ PART 46 —
+FINAL SECURITY HARDENING
+============================================================
+
+The initial project can be rebuilt using an IP address and HTTP.
+
+For a professional permanent deployment, improve this setup with:
+
+1.  Domain name
+2.  HTTPS/TLS
+3.  Nginx reverse proxy
+4.  Proper firewall/network restrictions
+5.  SSH key-only authentication
+6.  No unnecessary public ports
+7.  Secret management
+8.  Regular operating-system updates
+9.  Regular backups
+10. Off-server backup storage
+11. Monitoring alerts
+12. Controlled Grafana public access
+
+46.1 Why HTTPS?
+
+HTTP sends web traffic without transport encryption.
+
+HTTPS uses TLS encryption.
+
+For a public production application, use HTTPS whenever possible.
+
+46.2 TLS
+
+TLS means Transport Layer Security.
+
+It protects data while it travels between the client and server.
+
+A common deployment is:
+
+Client | HTTPS :443 | Nginx | Application containers
+
+============================================================ PART 47 —
+FINAL PROJECT CHECKLIST
+============================================================
+
+LOCAL APPLICATION
+
+[ ] Frontend runs locally [ ] Backend runs locally [ ] Database works [
+] API works [ ] Frontend communicates with API [ ] Important application
+functions tested [ ] Docker build works [ ] Docker Compose works
+
+GITHUB
+
+[ ] Git initialized [ ] .gitignore created [ ] Repository created [ ]
+Remote configured [ ] Main branch created [ ] Initial commit pushed [ ]
+No secrets committed
+
+ORACLE PRODUCTION
+
+[ ] OCI account ready [ ] Production VM created [ ] SSH access works [ ]
+Ubuntu updated [ ] Docker installed [ ] Docker Compose available [ ] Git
+installed [ ] GitHub SSH access works [ ] Repository cloned [ ]
+Production .env configured [ ] Containers running [ ] API health works [
+] Nginx configured [ ] Public application works
+
+MONITORING
+
+[ ] Monitoring VM created [ ] Prometheus running [ ] Grafana running [ ]
+Blackbox Exporter running [ ] Node Exporter running on production [ ]
+cAdvisor running on production [ ] Prometheus targets UP [ ] API metrics
+available [ ] Health probe successful [ ] Grafana datasource connected [
+] Dashboard created [ ] Alerts configured [ ] Alert rules validated
+
+CI/CD
+
+[ ] GitHub Actions workflow created [ ] Production SSH key configured [
+] GitHub Actions secrets created [ ] Workflow runs successfully [ ]
+Production code updates automatically [ ] Health check runs after
+deployment
+
+BACKUPS
+
+[ ] PostgreSQL backup created [ ] Grafana backup created [ ] Prometheus
+configuration backup created [ ] Prometheus data backup created [ ]
+Important backups copied off-server
+
+PUBLIC ACCESS
+
+[ ] Application port 80/443 configured [ ] Grafana public dashboard
+created if required [ ] TCP 3000 opened only if required [ ] Prometheus
+9090 NOT publicly exposed [ ] Node Exporter 9100 NOT publicly exposed [
+] cAdvisor 8080 NOT publicly exposed [ ] Database 5432 NOT publicly
+exposed
+
+============================================================ PART 48 —
+COMPLETE REBUILD ORDER
+============================================================
+
+When rebuilding the project from zero, follow this order.
+
+STEP 1
+
+Install development tools on Windows.
+
+STEP 2
+
+Create the project folder.
+
+STEP 3
+
+Build the frontend.
+
+STEP 4
+
+Build the FastAPI backend.
+
+STEP 5
+
+Create/configure the PostgreSQL database.
+
+STEP 6
+
+Connect frontend -> backend -> database.
+
+STEP 7
+
+Test everything locally.
+
+STEP 8
+
+Dockerize frontend, backend, and database.
+
+STEP 9
+
+Test Docker Compose locally.
+
+STEP 10
+
+Create .gitignore.
+
+STEP 11
+
+Initialize Git.
+
+STEP 12
+
+Create GitHub repository.
+
+STEP 13
+
+Push the project to GitHub.
+
+STEP 14
+
+Create Oracle Cloud account.
+
+STEP 15
+
+Create production VM.
+
+STEP 16
+
+Configure OCI networking.
+
+STEP 17
+
+SSH into production VM.
+
+STEP 18
+
+Install Docker, Git, and required utilities.
+
+STEP 19
+
+Create production SSH key for GitHub.
+
+STEP 20
+
+Add the VM’s public key to GitHub.
+
+STEP 21
+
+Clone the GitHub repository onto the production VM.
+
+STEP 22
+
+Create the production .env.
+
+STEP 23
+
+Run Docker Compose manually.
+
+STEP 24
+
+Verify database, backend, and frontend.
+
+STEP 25
+
+Configure Nginx.
+
+STEP 26
+
+Test the public application.
+
+STEP 27
+
+Install/configure Node Exporter on production.
+
+STEP 28
+
+Install/configure cAdvisor on production.
+
+STEP 29
+
+Create the separate monitoring VM.
+
+STEP 30
+
+Install Docker and Compose on monitoring VM.
+
+STEP 31
+
+Create Prometheus configuration.
+
+STEP 32
+
+Create Blackbox Exporter configuration.
+
+STEP 33
+
+Start Prometheus, Grafana, and Blackbox Exporter.
+
+STEP 34
+
+Connect Grafana to Prometheus.
+
+STEP 35
+
+Add FastAPI Prometheus instrumentation.
+
+STEP 36
+
+Verify /metrics.
+
+STEP 37
+
+Configure Prometheus scraping.
+
+STEP 38
+
+Configure alert rules.
+
+STEP 39
+
+Validate alert rules.
+
+STEP 40
+
+Build Grafana dashboard.
+
+STEP 41
+
+Create Grafana public dashboard link if required.
+
+STEP 42
+
+Open only required OCI monitoring port for public dashboard access.
+
+STEP 43
+
+Create GitHub Actions deployment workflow.
+
+STEP 44
+
+Create GitHub Actions secrets.
+
+STEP 45
+
+Test automated deployment.
+
+STEP 46
+
+Create backups.
+
+STEP 47
+
+Copy important backups away from the active VM.
+
+STEP 48
+
+Perform complete production verification.
+
+STEP 49
+
+Document final IPs, domains, ports, paths, credentials locations, and
+recovery procedures securely.
+
+STEP 50
+
+For permanent professional use, add domain + HTTPS and further security
+hardening.
+
+============================================================ PART 49 —
+IMPORTANT PATHS
+============================================================
+
+Local Windows project:
+
+    D:\DevOps\Projects\Investment tracker\investment-tracker
+
+Production VM project:
+
+    /home/ubuntu/Investment-tracker
+
+Monitoring VM:
+
+    /home/ubuntu/monitoring/
+
+Monitoring backups:
+
+    /home/ubuntu/monitoring-backups/
+
+Production SSH configuration:
+
+    /home/ubuntu/.ssh/
+
+GitHub Actions workflow:
+
+    .github/workflows/deploy.yml
+
+Production Nginx configuration:
+
+    /etc/nginx/sites-available/investment-tracker
+
+============================================================ PART 50 —
+FINAL CONCEPT MAP
+============================================================
+
+Git
+
+Tracks source-code changes.
+
+GitHub
+
+Stores the source repository remotely.
+
+GitHub Actions
+
+Automates deployment.
+
+OCI
+
+Provides cloud infrastructure.
+
+VM
+
+Provides a virtual Linux server.
+
+Docker
+
+Packages applications into containers.
+
+Docker Compose
+
+Runs multiple containers as one application stack.
+
+Nginx
+
+Receives public HTTP requests and routes them internally.
+
+FastAPI
+
+Provides the backend REST API.
+
+React/Vite
+
+Provides the browser-based frontend.
+
+PostgreSQL
+
+Stores persistent application data.
+
+Prometheus
+
+Collects and stores monitoring metrics.
+
+Node Exporter
+
+Exposes Linux host metrics.
+
+cAdvisor
+
+Exposes Docker container metrics.
+
+Blackbox Exporter
+
+Tests service reachability externally.
+
+Grafana
+
+Visualizes Prometheus metrics.
+
+Alert rules
+
+Detect important operational conditions.
+
+Backups
+
+Provide a recovery path if data or infrastructure is lost.
+
+============================================================ PART 51 —
+GOLDEN RULES FOR REBUILDING
+============================================================
+
+RULE 1
+
+Make the application work locally before deploying it.
+
+RULE 2
+
+Make Docker Compose work locally before automating production
+deployment.
+
+RULE 3
+
+Make manual production deployment work before creating CI/CD.
+
+RULE 4
+
+Keep secrets outside Git.
+
+RULE 5
+
+Never expose a database directly to the Internet unless there is a very
+specific and secured reason.
+
+RULE 6
+
+Keep monitoring independent from the production application where
+practical.
+
+RULE 7
+
+Do not expose Prometheus, Node Exporter, or cAdvisor publicly just for
+convenience.
+
+RULE 8
+
+Test every important deployment.
+
+RULE 9
+
+A backup is only useful if it can actually be restored.
+
+RULE 10
+
+Document every IP, path, key location, port, service, and dependency
+needed to rebuild the environment.
+
+RULE 11
+
+Do not blindly copy old IP addresses. Cloud instances can receive
+different addresses after recreation.
+
+RULE 12
+
+Do not blindly copy secrets or private SSH keys from an old deployment.
+Generate new credentials when rebuilding.
+
+RULE 13
+
+Keep the client-facing README concise and professional.
+
+RULE 14
+
+Keep this rebuild guide separate from the client-facing README.
+
+RULE 15
+
+When troubleshooting, change one thing at a time and verify the result
+before making the next change.
+
+============================================================ END OF
+GUIDE ============================================================
+
+The final client-facing README explains WHAT the project provides.
+
+This guide explains HOW to rebuild and operate it.
+
+Keep both documents:
+
+    README.md
+        -> Client/professional project presentation
+
+    STEP-BY-STEP-GUIDE.txt
+        -> Full technical rebuild and operations manual

@@ -1,1964 +1,586 @@
 # Investment Tracker
 
-A containerized investment-tracking application deployed on **Oracle Cloud**, with automated **CI/CD**, PostgreSQL, Nginx, Prometheus, Grafana, application metrics, infrastructure monitoring, health checks, alerting, and backup/recovery planning.
+A production-ready web application for tracking and managing investment portfolios, transactions, and portfolio data through a modern web interface.
 
-The project was built as a practical **DevOps learning and portfolio project**. It covers the complete journey from running an application with Docker Compose to deploying it on a cloud VM and building a separate monitoring system around it.
+The application is deployed on **Oracle Cloud** with containerized services, automated CI/CD, centralized monitoring, health checks, and operational alerting.
+
+---
+
+## 🔗 Project Links
+
+* **GitHub Repository:** https://github.com/farhan92cr/Investment-tracker
+* **Live Investment Tracker:** http://130.210.42.159
+* **Live Monitoring Dashboard:** http://132.226.189.195:3000/public-dashboards/baf9c5ba69ed43d482f08284a1cda3e3
+
+> The monitoring dashboard is provided as a client-view dashboard and does not require a Grafana username or password.
 
 ---
 
 ## 📌 Project Overview
 
-Investment Tracker is a web application for managing investment-related information such as stocks, prices, buy transactions, sold transactions, and portfolio/dashboard information.
+Investment Tracker provides a structured platform for managing investment-related information through a web-based application.
 
-The application is separated into three main components:
+The system is designed with a clear separation between the frontend, backend API, and database while incorporating automated deployment and production monitoring.
 
-* **Frontend** — user interface
-* **Backend** — FastAPI application/API
-* **PostgreSQL** — persistent application database
+### Key capabilities
 
-The application is containerized with Docker and deployed on an **Oracle Cloud Infrastructure (OCI)** virtual machine.
-
-A second Oracle Cloud VM is used specifically for monitoring.
-
-The final infrastructure therefore consists of:
-
-```text
-                           Internet
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │   Oracle Cloud   │
-                    │  Production VM   │
-                    │ 130.210.42.159   │
-                    └─────────┬────────┘
-                              │
-                         Nginx :80
-                              │
-                    ┌─────────┴─────────┐
-                    │                   │
-                    ▼                   ▼
-             Frontend :5173       Backend :8000
-                                        │
-                                        ▼
-                                  PostgreSQL :5432
-
-
-                    ┌─────────────────────────┐
-                    │    Monitoring VM        │
-                    │   132.226.189.195       │
-                    ├─────────────────────────┤
-                    │ Prometheus :9090        │
-                    │ Grafana :3000           │
-                    │ Blackbox Exporter :9115 │
-                    └───────────┬─────────────┘
-                                │
-                 ┌──────────────┼───────────────┐
-                 │              │               │
-                 ▼              ▼               ▼
-           Node Exporter    cAdvisor       Application
-                 │              │            Metrics
-                 └──────────────┼───────────────┘
-                                │
-                                ▼
-                         Production VM
-```
+* Investment and portfolio data management
+* Transaction management
+* REST API backend
+* Web-based frontend
+* PostgreSQL database
+* Containerized deployment
+* Reverse proxy with Nginx
+* Automated GitHub Actions deployment
+* Application health monitoring
+* Server and container monitoring
+* API metrics and performance monitoring
+* Production alerting
+* Database and monitoring backups
 
 ---
 
 # 🏗️ Architecture
 
-The project uses two Oracle Cloud virtual machines.
+                         ┌─────────────────────────┐
+                         │        Client           │
+                         │   Web Browser / User    │
+                         └────────────┬────────────┘
+                                      │
+                                      ▼
+                         ┌─────────────────────────┐
+                         │        Nginx            │
+                         │     Reverse Proxy       │
+                         │        Port 80           │
+                         └────────────┬────────────┘
+                                      │
+                         ┌────────────┴────────────┐
+                         │                         │
+                         ▼                         ▼
+                ┌─────────────────┐       ┌─────────────────┐
+                │    Frontend     │       │     Backend     │
+                │   React / Vite  │       │ FastAPI / API   │
+                │    Port 5173    │       │    Port 8000    │
+                └─────────────────┘       └────────┬────────┘
+                                                   │
+                                                   ▼
+                                          ┌─────────────────┐
+                                          │   PostgreSQL    │
+                                          │    Database     │
+                                          │    Port 5432    │
+                                          └─────────────────┘
 
-### Production VM
 
-The production VM runs the actual application:
+        ┌────────────────────────────────────────────────────┐
+        │                Monitoring VM                        │
+        │                                                    │
+        │  Prometheus ───────► Grafana                       │
+        │       │                 │                          │
+        │       ├── Node Exporter│                          │
+        │       ├── cAdvisor     │                          │
+        │       ├── API Metrics  │                          │
+        │       └── Blackbox     │                          │
+        │                                                    │
+        └────────────────────────────────────────────────────┘
 
-```text
-Production VM
-│
-├── Nginx
-│
-├── Frontend container
-│
-├── Backend container
-│
-├── PostgreSQL container
-│
-├── Node Exporter
-│
-└── cAdvisor
-```
-
-### Monitoring VM
-
-The monitoring VM is dedicated to monitoring the production environment:
-
-```text
-Monitoring VM
-│
-├── Prometheus
-├── Grafana
-└── Blackbox Exporter
-```
-
-Separating monitoring from production provides an important advantage:
-
-> If the production application or production VM becomes unavailable, the monitoring system can still remain available to detect and report the failure.
-
----
-
-# 🖥️ Infrastructure
-
-## Production VM
-
-| Property     | Value                       |
-| ------------ | --------------------------- |
-| Cloud        | Oracle Cloud Infrastructure |
-| Region       | Mumbai (`ap-mumbai-1`)      |
-| Shape        | `VM.Standard.E2.1.Micro`    |
-| OS           | Ubuntu 22.04.5 LTS          |
-| Public IP    | `130.210.42.159`            |
-| Private IP   | `10.0.0.221`                |
-| Architecture | x86_64                      |
-
-## Monitoring VM
-
-| Property   | Value                                    |
-| ---------- | ---------------------------------------- |
-| Cloud      | Oracle Cloud Infrastructure              |
-| Shape      | `VM.Standard.E2.1.Micro`                 |
-| OS         | Ubuntu 22.04 Minimal                     |
-| Public IP  | `132.226.189.195`                        |
-| Monitoring | Prometheus + Grafana + Blackbox Exporter |
-
-Both VMs use Oracle Cloud Always Free eligible resources.
 
 ---
 
-# 🧩 Application Architecture
+# ☁️ Infrastructure
 
-The application consists of:
+The production application is hosted on **Oracle Cloud Infrastructure (OCI)**.
 
-```text
-Browser
-   │
-   ▼
-Nginx
-   │
-   ├──────────────► Frontend
-   │
-   └──────────────► Backend API
-                         │
-                         ▼
-                    PostgreSQL
-```
+### Production environment
 
-## Frontend
+* Oracle Cloud VM
+* Ubuntu Linux
+* Docker
+* Docker Compose
+* Nginx
+* PostgreSQL
+* FastAPI
+* React/Vite
 
-The frontend provides the user interface.
+### Monitoring environment
 
-It runs in a Docker container and listens internally on:
+Monitoring is hosted separately from the production application.
 
-```text
-5173
-```
+This separation allows monitoring services to remain independent from the application environment.
 
-The frontend communicates with the backend API.
+Monitoring components include:
+
+* Prometheus
+* Grafana
+* Blackbox Exporter
+
+Production metrics are collected using:
+
+* Node Exporter
+* cAdvisor
+* FastAPI Prometheus instrumentation
 
 ---
 
-## Backend
+# 🐳 Containerized Application
+
+The application is composed of independent containers:
+
+| Service    | Purpose                          |
+| ---------- | -------------------------------- |
+| Frontend   | Web application interface        |
+| Backend    | FastAPI application and REST API |
+| PostgreSQL | Persistent application database  |
+
+Docker Compose manages the application services and their dependencies.
+
+This provides:
+
+* Consistent deployment
+* Service isolation
+* Easier maintenance
+* Repeatable deployments
+* Simplified application recovery
+
+---
+
+# 🖥️ Frontend
+
+The frontend is built using:
+
+* React
+* Vite
+* Modern JavaScript tooling
+
+The frontend communicates with the backend API and provides the primary user interface for the Investment Tracker.
+
+Nginx handles incoming HTTP requests and routes traffic to the appropriate application service.
+
+---
+
+# ⚙️ Backend
 
 The backend is implemented using **FastAPI**.
 
-It provides API endpoints for application functionality including:
+It provides:
 
-* authentication
-* stocks
-* buy transactions
-* sold transactions
-* prices
-* dashboard
-* health checking
-* Prometheus metrics
+* REST API endpoints
+* Authentication-related endpoints
+* Investment and stock data operations
+* Buy transaction management
+* Sold transaction management
+* Portfolio/dashboard functionality
+* Health endpoint
+* Prometheus metrics endpoint
 
-The backend listens on:
+### Health endpoint
 
-```text
-8000
-```
+/health
 
----
+The endpoint provides a lightweight application health check used by the monitoring system and deployment pipeline.
 
-## PostgreSQL
+### Metrics endpoint
 
-PostgreSQL is used as the application's relational database.
+/metrics
 
-The database runs in its own Docker container.
+The backend exposes Prometheus-compatible application metrics.
 
-The database uses a Docker named volume so that database data is not lost when the container is recreated.
-
-The application connects to PostgreSQL using the Docker Compose service name:
-
-```text
-db
-```
-
-rather than the public IP address.
-
-This allows Docker's internal network to handle communication between the containers.
+These metrics allow operational visibility into API activity and HTTP response behavior.
 
 ---
 
-# 🐳 Docker
+# 🗄️ Database
 
-Docker packages the application's components into isolated containers.
+The application uses **PostgreSQL 16**.
 
-The production environment currently contains:
+The database runs as a dedicated Docker service with persistent Docker volume storage.
 
-```text
-investment-tracker-frontend-1
-investment-tracker-backend-1
-investment-tracker-db-1
-node-exporter
-cadvisor
-```
+### Database characteristics
 
-Docker Compose is used to define and manage the application services.
+* PostgreSQL 16 Alpine
+* Persistent database volume
+* Health check using `pg_isready`
+* Backend-to-database private container networking
+* Database not exposed as a public application endpoint
 
-Typical commands:
-
-```bash
-docker compose ps
-```
-
-View running containers:
-
-```bash
-docker ps
-```
-
-View logs:
-
-```bash
-docker compose logs
-```
-
-View backend logs:
-
-```bash
-docker compose logs backend
-```
-
-Restart services:
-
-```bash
-docker compose restart
-```
-
-Build and start:
-
-```bash
-docker compose up -d --build
-```
+This architecture keeps the database separated from direct public web traffic.
 
 ---
 
-# 🌐 Nginx
+# 🌐 Nginx Reverse Proxy
 
-Nginx is used as the **reverse proxy**.
+Nginx provides the production HTTP entry point.
 
-### What is a reverse proxy?
+Its responsibilities include:
 
-A reverse proxy is a server that receives requests from users and forwards those requests to the correct internal application.
+* Receiving client requests
+* Routing frontend traffic
+* Routing API requests
+* Forwarding request headers
+* Providing a clean public application endpoint
 
-Instead of users directly accessing:
-
-```text
-:5173
-:8000
-```
-
-they access the normal HTTP endpoint:
-
-```text
-http://130.210.42.159
-```
-
-Nginx decides where the request should go.
-
-### Current routing
-
-```text
-/                         → Frontend :5173
-
-/auth                     → Backend :8000
-/stocks                   → Backend :8000
-/buy-transactions         → Backend :8000
-/sold-transactions        → Backend :8000
-/prices                   → Backend :8000
-/dashboard                → Backend :8000
-/health                   → Backend :8000
-```
-
-This gives the application a cleaner public interface and prevents users from needing to know the internal container ports.
+The application is therefore accessed through the web server rather than exposing the internal frontend and backend services directly to users.
 
 ---
 
-# 🔄 CI/CD
+# 🔄 CI/CD Automation
 
-The project uses **GitHub Actions** for automated deployment.
+Deployment is automated through **GitHub Actions**.
 
-## What is CI/CD?
+The deployment workflow is triggered whenever changes are pushed to the `main` branch.
 
-**CI/CD** stands for Continuous Integration and Continuous Delivery/Deployment.
+### Deployment flow
 
-In simple terms:
-
-> Code is pushed to GitHub → GitHub Actions connects to the production server → the latest code is deployed automatically.
-
-The deployment workflow runs when changes are pushed to:
-
-```text
-main
-```
-
----
-
-## Deployment flow
-
-```text
 Developer
-    │
-    ▼
-Git push
-    │
-    ▼
-GitHub
-    │
-    ▼
+   │
+   ▼
+GitHub Repository
+   │
+   │ Push to main
+   ▼
 GitHub Actions
-    │
-    ▼
-SSH connection
-    │
-    ▼
-Production VM
-    │
-    ├── git fetch
-    ├── git reset
-    ├── docker compose build
-    ├── docker compose up
-    │
-    ▼
-API health check
-    │
-    ▼
-Deployment successful
+   │
+   ▼
+Secure SSH Connection
+   │
+   ▼
+Oracle Production VM
+   │
+   ├── Fetch latest code
+   ├── Reset to origin/main
+   ├── Build/update containers
+   ├── Start application
+   └── Run API health check
 ```
+
+### Automated deployment includes
+
+1. Secure SSH authentication
+2. Connection to the production server
+3. Synchronization with the `main` branch
+4. Docker Compose build/update
+5. Application startup
+6. API health verification
+7. Deployment failure detection
+
+This reduces manual deployment work and provides a repeatable release process.
 
 ---
 
-## GitHub Secrets
+# 🔐 Deployment Security
 
-The deployment workflow uses GitHub Secrets instead of putting sensitive credentials directly into the repository.
+The deployment process uses SSH-based authentication rather than GitHub passwords.
 
-Current secrets include:
+Security measures include:
 
-```text
-SSH_PRIVATE_KEY
-SSH_USER
-SERVER_HOST
-```
+* Dedicated deployment SSH key
+* GitHub repository deploy key
+* GitHub Actions secret for deployment authentication
+* Server-specific SSH configuration
+* Database kept behind the application network
+* Monitoring services separated from production
+* Public access limited to required application services
 
-The production host is:
-
-```text
-130.210.42.159
-```
-
-The SSH user is:
-
-```text
-ubuntu
-```
+Sensitive credentials and private keys are not stored in the repository.
 
 ---
 
-## Deployment health check
+# 📊 Monitoring & Observability
 
-After deployment, GitHub Actions checks:
+The production environment has dedicated monitoring infrastructure.
 
-```text
-http://127.0.0.1:8000/health
-```
+Monitoring is implemented using:
 
-The deployment is considered successful when the API responds correctly.
-
-The health endpoint returns:
-
-```json
-{
-  "status": "ok"
-}
-```
-
-If the API does not become ready within the configured waiting period, the workflow reports a failure.
-
-This prevents a deployment from being marked successful simply because Docker started the containers.
+* Prometheus
+* Grafana
+* Blackbox Exporter
+* Node Exporter
+* cAdvisor
+* FastAPI Prometheus instrumentation
 
 ---
 
-# 📊 Monitoring Architecture
+## Grafana Dashboard
 
-Monitoring is intentionally separated from the production VM.
+The monitoring dashboard provides a client-friendly view of production system status.
 
-```text
-                     Monitoring VM
-                          │
-                  ┌───────┴────────┐
-                  │                │
-             Prometheus         Grafana
-                  │
-       ┌──────────┼───────────────┐
-       │          │               │
-       ▼          ▼               ▼
-Node Exporter  cAdvisor      Backend Metrics
-       │          │               │
-       └──────────┼───────────────┘
-                  │
-                  ▼
-             Production VM
-```
+### Dashboard includes
 
-Blackbox Exporter independently checks the application's public health endpoint.
+* Production disk usage
+* Docker monitoring
+* Docker container memory
+* Container start time
+* API request activity
+* API 5xx error rate
+* Application health
+* CPU usage
+* Server uptime
+* Memory usage
+* Network activity
 
----
+### Client monitoring dashboard
 
-# 🔎 Prometheus
+**Live Monitoring Dashboard:**
 
-## What is Prometheus?
+http://132.226.189.195:3000/public-dashboards/baf9c5ba69ed43d482f08284a1cda3e3
 
-**Prometheus is a monitoring and metrics collection system.**
-
-In simple terms:
-
-> Prometheus regularly asks different systems for numerical information and stores that information so it can later be queried and displayed.
-
-Examples of metrics:
-
-```text
-CPU usage
-Memory usage
-Disk usage
-Network traffic
-HTTP requests
-HTTP errors
-Container memory
-Container CPU
-Server availability
-```
-
-Prometheus runs on the monitoring VM:
-
-```text
-9090
-```
+The dashboard is configured for external viewing and does not require a Grafana login.
 
 ---
 
-# 📈 Metrics
+# 📡 Prometheus Monitoring
 
-## What are metrics?
+Prometheus continuously collects metrics from the production environment.
 
-Metrics are numerical measurements describing the state or activity of a system.
+Monitored targets include:
 
-For example:
+### Production server
 
-```text
-CPU usage = 6.5%
-Memory usage = 55%
-Disk usage = 28.4%
-```
-
-Prometheus stores these measurements over time.
-
-This allows us to answer questions such as:
-
-> What was the server's CPU usage five minutes ago?
-
-or:
-
-> Is the disk usage continuously increasing?
-
----
-
-# 🖥️ Node Exporter
-
-## What is Node Exporter?
-
-**Node Exporter collects operating-system and hardware-related metrics from a Linux server.**
-
-It provides information such as:
+Node Exporter provides infrastructure metrics including:
 
 * CPU
-* RAM
-* disk
-* filesystem
-* network
-* system uptime
-* load
-* filesystem capacity
+* Memory
+* Disk
+* Network
+* Uptime
+* Filesystem statistics
 
-Node Exporter runs on the **production VM**.
+### Docker containers
 
-Prometheus collects its metrics from:
+cAdvisor provides container-level information including:
 
-```text
-10.0.0.221:9100
-```
+* Container memory
+* Container activity
+* Container start time
+* Container resource usage
 
-The port is bound to the production VM's **private IP**, rather than publicly exposing it.
+### Application API
 
----
+The FastAPI application exposes Prometheus metrics for:
 
-# 🐳 cAdvisor
+* HTTP request activity
+* Request rates
+* HTTP status classes
+* API operational behavior
 
-## What is cAdvisor?
+### Application availability
 
-**cAdvisor collects resource-usage information about containers.**
-
-It helps answer questions such as:
-
-* How much CPU is a container using?
-* How much memory is a container using?
-* When did a container start?
-* How much network traffic is a container generating?
-
-cAdvisor runs on the production VM.
-
-It is available internally at:
-
-```text
-10.0.0.221:8080
-```
-
-It is also bound to the private IP rather than being publicly exposed.
+Blackbox Exporter performs an external HTTP health check against the application health endpoint.
 
 ---
 
-# 🛰️ Blackbox Exporter
+# 🚨 Production Alerts
 
-## What is Blackbox Exporter?
+The monitoring system currently contains three focused production alerts.
 
-Blackbox Exporter checks a service from the outside.
+### 1. ProductionServerDown
 
-Instead of asking:
+Triggered when Prometheus cannot reach the production server's Node Exporter for the configured period.
 
-> "What CPU are you using?"
+**Severity:** Critical
 
-it asks:
+### 2. InvestmentTrackerAPIDown
 
-> "Can I actually reach this application and does it respond correctly?"
+Triggered when the production API metrics endpoint becomes unavailable.
 
-For this project, Blackbox Exporter checks:
+**Severity:** Critical
 
-```text
-http://130.210.42.159/health
-```
+### 3. ProductionDiskUsageHigh
 
-The monitoring flow is:
+Triggered when production root filesystem usage remains above the configured threshold.
 
-```text
-Blackbox Exporter
-       │
-       ▼
-Production /health
-       │
-       ▼
-HTTP response
-       │
-       ▼
-probe_success
-```
+**Severity:** Warning
 
-A value of:
-
-```text
-1
-```
-
-means the probe succeeded.
+The alert configuration is intentionally focused on important operational conditions rather than generating unnecessary notifications.
 
 ---
 
-# 🚀 Application Metrics
+# 🩺 Health Monitoring
 
-The FastAPI backend has been instrumented using:
+The application exposes:
 
-```text
-prometheus-fastapi-instrumentator
-```
+GET /health
 
-The application exposes Prometheus-compatible metrics through:
 
-```text
-/metrics
-```
+The monitoring infrastructure checks this endpoint continuously.
 
-Prometheus collects them from:
+A successful response confirms that the application health endpoint is reachable.
 
-```text
-130.210.42.159:8000/metrics
-```
-
-This allows the monitoring system to observe application-level information rather than only server-level information.
-
-For example:
-
-```text
-HTTP request rate
-HTTP response status
-HTTP 5xx errors
-request processing information
-```
+This provides an independent availability check in addition to server and container monitoring.
 
 ---
 
-# ❤️ Application Health Check
+# 📈 API Error Monitoring
 
-The backend provides:
+The backend exposes HTTP metrics through Prometheus.
 
-```text
-/health
-```
+API 5xx responses can be monitored through:
 
-A healthy response is:
-
-```json
-{
-  "status": "ok"
-}
-```
-
-This endpoint is used by:
-
-1. CI/CD deployment verification
-2. Blackbox monitoring
-3. Operational troubleshooting
-
-This makes `/health` an important part of the application's reliability design.
-
----
-
-# 📊 Grafana
-
-## What is Grafana?
-
-**Grafana is a visualization and dashboard platform.**
-
-Prometheus stores the metrics.
-
-Grafana turns those metrics into:
-
-* graphs
-* panels
-* statistics
-* dashboards
-* visual monitoring information
-
-The monitoring VM runs Grafana on:
-
-```text
-3000
-```
-
-The main dashboard is:
-
-```text
-Investment Tracker Monitoring
-```
-
----
-
-# 📋 Grafana Dashboard
-
-The dashboard contains panels for important production metrics.
-
-Current monitoring includes:
-
-### Disk Usage
-
-Shows production filesystem usage.
-
-Current verified usage during setup:
-
-```text
-~28.4%
-```
-
----
-
-### Docker Monitoring
-
-Shows resource usage associated with Docker containers.
-
----
-
-### Docker Container Memory
-
-Shows container memory consumption.
-
----
-
-### Docker Container Start Time
-
-Shows when containers started.
-
----
-
-### API Request Rate
-
-Shows the rate of HTTP requests received by the API.
-
----
-
-### API 5xx Errors
-
-Monitors server-side HTTP errors.
-
-No data can be a normal result when there have been no 5xx responses.
-
-This is important:
-
-> "No data" on an error-rate panel does not automatically mean monitoring is broken. It can simply mean there have been no matching errors.
-
----
-
-### Health / Blackbox
-
-Shows whether the production application's health endpoint is responding successfully.
-
-Current healthy value:
-
-```text
-probe_success = 1
-```
-
----
-
-### CPU
-
-Shows production CPU utilization.
-
----
-
-### Memory
-
-Shows production memory utilization.
-
----
-
-### Uptime
-
-Shows how long the monitored system has been running.
-
----
-
-### Network Traffic
-
-Shows production network activity.
-
----
-
-# 🚨 Alerting
-
-Prometheus evaluates alerting rules defined in:
-
-```text
-prometheus/alerts.yml
-```
-
-The project intentionally keeps the alerting system small and focused.
-
-There are currently **three production alerts**.
-
----
-
-## 1. ProductionServerDown
-
-This alert monitors the production Node Exporter.
-
-Condition:
-
-```text
-up{job="node-exporter"} == 0
-```
-
-The alert fires after the condition remains true for:
-
-```text
-2 minutes
-```
-
-Purpose:
-
-> Detect when Prometheus can no longer reach the production server's Node Exporter.
-
----
-
-## 2. InvestmentTrackerAPIDown
-
-This alert monitors the backend API metrics endpoint.
-
-Condition:
-
-```text
-up{job="investment-tracker-api"} == 0
-```
-
-It fires after:
-
-```text
-2 minutes
-```
-
-Purpose:
-
-> Detect when Prometheus cannot reach the Investment Tracker API.
-
----
-
-## 3. ProductionDiskUsageHigh
-
-This alert monitors the production root filesystem.
-
-Threshold:
-
-```text
-> 85%
-```
-
-Duration:
-
-```text
-10 minutes
-```
-
-Purpose:
-
-> Detect sustained high disk usage before the production server runs out of storage.
-
----
-
-# 🔧 PromQL
-
-## What is PromQL?
-
-**PromQL is Prometheus Query Language.**
-
-It is used to retrieve and calculate information from Prometheus metrics.
-
-For example, a query can calculate filesystem usage:
-
-```text
-100 * (
-  1 -
-  (
-    available space /
-    total space
-  )
+promql
+sum(
+  rate(http_requests_total{
+    job="investment-tracker-api",
+    status="5xx"
+  }[5m])
 )
-```
 
-PromQL is used by:
 
-* Grafana panels
-* Prometheus queries
-* alerting rules
-* troubleshooting
+This allows operational teams to identify server-side API error activity without requiring application logs to be manually inspected.
 
 ---
 
-# 🔌 Prometheus HTTP API
+# 💾 Backup & Recovery
 
-Prometheus also provides an HTTP API.
+Backup procedures have been established for the production database and monitoring infrastructure.
 
-For example:
+Monitoring backups include:
 
-```bash
-curl -s http://localhost:9090/api/v1/rules
-```
+* Grafana data
+* Prometheus configuration
+* Prometheus data
 
-This retrieves information about loaded Prometheus rules.
+The production PostgreSQL database is also backed up.
 
-Another endpoint is:
+Backup files are maintained separately from the active monitoring services to support recovery in case of infrastructure or service failure.
 
-```text
-/api/v1/query
-```
+---
 
-which can execute a PromQL query through the HTTP API.
+# 🛡️ Reliability
 
-Conceptually:
+The deployment has been designed with operational reliability in mind.
 
-```text
-curl
-  │
-  ▼
-HTTP GET request
-  │
-  ▼
-Prometheus API
-  │
-  ▼
-PromQL
-  │
-  ▼
-JSON result
-```
+Key measures include:
 
-This is different from an alerting rule.
+* Persistent PostgreSQL storage
+* Dockerized services
+* Separate monitoring infrastructure
+* Automated deployment
+* Automated API health verification
+* Server monitoring
+* Container monitoring
+* Application monitoring
+* Disk monitoring
+* Production alerts
+* Backup procedures
+* Git-based version control
 
-For example:
+---
 
-```text
-alerts.yml
-      │
-      ▼
-Alerting Rule
-      │
-      ▼
-Prometheus evaluates condition
-```
+# 📁 Project Structure
 
-while:
 
-```text
-curl
-      │
-      ▼
-Prometheus HTTP API
-      │
-      ▼
-PromQL query
-      │
-      ▼
-Result
+Investment-tracker/
+│
+├── backend/
+│   ├── application code
+│   ├── API configuration
+│   ├── requirements.txt
+│   └── Dockerfile
+│
+├── frontend/
+│   ├── React application
+│   ├── Vite configuration
+│   └── Dockerfile
+│
+├── .github/
+│   └── workflows/
+│       └── deploy.yml
+│
+├── docker-compose.yml
+├── README.md
+└── .gitignore
 ```
 
 ---
 
-# 🔐 Security and Network Configuration
+# 🔧 Technology Stack
 
-Security was considered during the monitoring migration.
-
-## Production monitoring ports
-
-The following monitoring ports are **not intended to be public application endpoints**:
-
-```text
-9100 → Node Exporter
-8080 → cAdvisor
-```
-
-They are bound to the production private IP:
-
-```text
-10.0.0.221
-```
-
-This prevents them from being unnecessarily exposed through the production public interface.
-
----
-
-## Production public services
-
-The intended public application endpoint is:
-
-```text
-HTTP :80
-```
-
-SSH is available for administration:
-
-```text
-SSH :22
-```
-
-The host firewall also contains rules restricting unwanted inbound traffic.
+| Area                 | Technology                  |
+| -------------------- | --------------------------- |
+| Cloud                | Oracle Cloud Infrastructure |
+| Operating System     | Ubuntu Linux                |
+| Frontend             | React / Vite                |
+| Backend              | FastAPI / Python            |
+| Database             | PostgreSQL 16               |
+| Web Server           | Nginx                       |
+| Containers           | Docker                      |
+| Orchestration        | Docker Compose              |
+| CI/CD                | GitHub Actions              |
+| Metrics              | Prometheus                  |
+| Visualization        | Grafana                     |
+| Black-box Monitoring | Blackbox Exporter           |
+| Server Metrics       | Node Exporter               |
+| Container Metrics    | cAdvisor                    |
+| Version Control      | Git / GitHub                |
 
 ---
 
-# 🔒 Why private monitoring ports matter
+# 🎯 Operational Outcomes
 
-Docker-published ports can sometimes bypass traditional host firewall expectations depending on how Docker networking is configured.
+The deployed solution provides:
 
-Therefore, simply assuming:
+* A production-accessible investment tracking application
+* Persistent relational data storage
+* Containerized application services
+* Automated source-to-production deployment
+* Automated post-deployment health validation
+* Dedicated infrastructure monitoring
+* Client-view system dashboard
+* Application API monitoring
+* Server and container visibility
+* Production alerting
+* Backup capability
+* Version-controlled infrastructure and application code
 
-> "The firewall will protect this port"
-
-is not always sufficient.
-
-Binding monitoring services directly to:
-
-```text
-10.0.0.221
-```
-
-provides an additional layer of protection.
-
----
-
-# 🔐 SSH Access
-
-SSH is used for:
-
-* server administration
-* CI/CD deployment
-* troubleshooting
-* maintenance
-
-GitHub Actions uses a dedicated SSH private key stored as a GitHub Secret.
-
-The production VM also uses an SSH deploy key for GitHub repository access.
-
-This avoids relying on GitHub password authentication.
+The result is a maintainable production environment with application delivery, monitoring, and operational visibility integrated into one workflow.
 
 ---
 
-# ☁️ Oracle Cloud
+# 🚀 Deployment Process
 
-The application is deployed on:
+The normal release process is simple:
 
-**Oracle Cloud Infrastructure (OCI)**.
 
-OCI provides the virtual machines used for:
-
-```text
-Production
-Monitoring
-```
-
-The project uses the Always Free eligible VM shape:
-
-```text
-VM.Standard.E2.1.Micro
-```
-
-This makes the environment useful as a low-cost DevOps practice and portfolio infrastructure.
-
----
-
-# 💾 Backup Strategy
-
-Backups were considered for both application and monitoring infrastructure.
-
-## Monitoring backups
-
-The monitoring VM contains backups for:
-
-### Grafana
-
-```text
-grafana-backup-20260929-101104.tar.gz
-```
-
-This contains Grafana data including dashboard/database information.
-
-### Prometheus configuration
-
-```text
-prometheus-config-20260929-101619.tar.gz
-```
-
-This preserves important configuration such as:
-
-```text
-prometheus.yml
-alerts.yml
-```
-
-### Prometheus historical data
-
-```text
-prometheus-data-20260929-102000.tar.gz
-```
-
-This preserves Prometheus's stored historical metrics.
-
----
-
-# 🗄️ Production database
-
-The PostgreSQL database is part of the production application's backup/recovery considerations.
-
-The project also maintains the existing PostgreSQL backup arrangement rather than unnecessarily recreating the backup process during the monitoring migration.
-
----
-
-# 🧠 Understanding the backups
-
-Different backups protect different things.
-
-```text
-Grafana backup
-      │
-      └── How monitoring is displayed/configured
-
-Prometheus config
-      │
-      └── How monitoring works
-
-Prometheus data
-      │
-      └── Historical monitoring information
-
-PostgreSQL backup
-      │
-      └── Application data
-```
-
-A monitoring system can therefore be rebuilt even if the monitoring VM is lost, provided the important configuration and backups are available.
-
----
-
-# 🔄 Complete Deployment Flow
-
-The complete application deployment process is:
-
-```text
-Developer changes code
-        │
-        ▼
-Git commit
-        │
-        ▼
-Git push
-        │
-        ▼
-GitHub
-        │
-        ▼
+Code Change
+    ↓
+Git Commit
+    ↓
+Push to GitHub main
+    ↓
 GitHub Actions
-        │
-        ▼
-SSH to Oracle VM
-        │
-        ▼
-git fetch origin main
-        │
-        ▼
-git reset --hard origin/main
-        │
-        ▼
-docker compose up -d --build
-        │
-        ▼
-Wait for backend
-        │
-        ▼
-/health check
-        │
-        ├── Success → Deployment successful
-        │
-        └── Failure → Deployment fails
-```
-
----
-
-# 🔍 Complete Monitoring Flow
-
-Once the application is running:
-
-```text
-Production Server
-│
-├── Node Exporter
-│      │
-│      └── Server metrics
-│
-├── cAdvisor
-│      │
-│      └── Container metrics
-│
-└── FastAPI
-       │
-       └── Application metrics
-              │
-              ▼
-         Prometheus
-              │
-              ├── Stores metrics
-              ├── Evaluates alerts
-              │
-              ▼
-           Grafana
-              │
-              ▼
-        Monitoring Dashboard
-```
-
-Separately:
-
-```text
-Blackbox Exporter
-        │
-        ▼
-Production /health
-        │
-        ▼
-probe_success
-```
-
----
-
-# 🛠️ Useful Production Commands
-
-## Check containers
-
-```bash
-docker ps
-```
-
-## Check Compose services
-
-```bash
-docker compose ps
-```
-
-## View logs
-
-```bash
-docker compose logs
-```
-
-## View backend logs
-
-```bash
-docker compose logs backend
-```
-
-## Follow backend logs
-
-```bash
-docker compose logs -f backend
-```
-
-## Restart application
-
-```bash
-docker compose restart
-```
-
-## Rebuild application
-
-```bash
-docker compose up -d --build
-```
-
-## Check API health
-
-```bash
-curl -fsS http://127.0.0.1:8000/health
-```
-
-Expected:
-
-```json
-{"status":"ok"}
-```
-
----
-
-# 📊 Useful Monitoring Commands
-
-## Check Prometheus containers
-
-```bash
-docker ps
-```
-
-## Check Prometheus rules
-
-```bash
-curl -s http://localhost:9090/api/v1/rules
-```
-
-## Check Prometheus targets
-
-Open:
-
-```text
-http://localhost:9090/targets
-```
-
-when connected through the SSH tunnel.
-
-## Query Prometheus
-
-Example:
-
-```bash
-curl -s --get 'http://localhost:9090/api/v1/query' \
-  --data-urlencode 'query=up'
-```
-
----
-
-# 💻 SSH Tunnel for Grafana
-
-The monitoring VM does not expose Grafana directly to the public internet.
-
-Grafana can be accessed through an SSH tunnel.
-
-From Windows PowerShell:
-
-```powershell
-ssh -i "C:\Users\Admin\Downloads\ssh-key-2026-09-28 (1).key" -L 3000:127.0.0.1:3000 ubuntu@132.226.189.195
-```
-
-Then open:
-
-```text
-http://localhost:3000
-```
-
-This forwards the local Windows port:
-
-```text
-localhost:3000
-```
-
-to Grafana running on the monitoring VM.
-
----
-
-# 🧪 Monitoring Verification
-
-The monitoring environment was tested end-to-end.
-
-Verified:
-
-* Production Node Exporter responds
-* Production cAdvisor responds
-* FastAPI `/metrics` responds
-* `/health` responds
-* Blackbox health probe succeeds
-* Prometheus sees production targets
-* Grafana receives Prometheus data
-* Dashboard panels update
-* CPU metrics update
-* memory metrics update
-* disk metrics update
-* network metrics update
-* container metrics update
-* API request metrics update
-* alerting rules load successfully
-
-Prometheus currently reports the important production targets as healthy:
-
-```text
-prometheus                         UP
-investment-tracker-api             UP
-investment-tracker-health         UP
-node-exporter                      UP
-cadvisor                           UP
-```
-
----
-
-# 🧯 Troubleshooting
-
-## API is not responding
-
-Check:
-
-```bash
-docker compose ps
-```
-
-Then:
-
-```bash
-docker compose logs backend
-```
-
-Then:
-
-```bash
-curl -fsS http://127.0.0.1:8000/health
-```
-
----
-
-## Frontend is not loading
-
-Check:
-
-```bash
-docker compose ps
-```
-
-Then:
-
-```bash
-docker compose logs frontend
-```
-
-Check Nginx:
-
-```bash
-sudo nginx -t
-```
-
----
-
-## PostgreSQL is not healthy
-
-Check:
-
-```bash
-docker compose ps
-```
-
-Then:
-
-```bash
-docker compose logs db
-```
-
----
-
-## Prometheus target is DOWN
-
-First check the target directly from the monitoring VM.
-
-Node Exporter:
-
-```bash
-curl -s http://10.0.0.221:9100/metrics | head
-```
-
-cAdvisor:
-
-```bash
-curl -s http://10.0.0.221:8080/metrics | head
-```
-
-API:
-
-```bash
-curl -s http://130.210.42.159:8000/metrics | head
-```
-
-Health:
-
-```bash
-curl -s http://130.210.42.159/health
-```
-
-If the direct request fails, investigate networking or the production service.
-
-If the direct request succeeds but Prometheus reports DOWN, investigate the Prometheus configuration and target definition.
-
----
-
-# 🧩 Important DevOps Concepts Demonstrated
-
-This project demonstrates practical experience with:
-
-### Linux
-
-* Ubuntu administration
-* SSH
-* processes
-* networking
-* filesystem usage
-* permissions
-* services
-
-### Docker
-
-* Dockerfiles
-* Docker images
-* containers
-* volumes
-* Docker networking
-* Docker Compose
-* container health checks
-
-### Cloud
-
-* Oracle Cloud Infrastructure
-* cloud VMs
-* public/private IP addresses
-* cloud networking
-* SSH access
-
-### CI/CD
-
-* GitHub
-* GitHub Actions
-* SSH-based deployment
-* GitHub Secrets
-* automated builds
-* automated health checks
-
-### Web infrastructure
-
-* Nginx
-* reverse proxy
-* HTTP
-* application routing
-
-### Backend
-
-* FastAPI
-* REST APIs
-* health endpoints
-* Prometheus instrumentation
-
-### Monitoring
-
-* Prometheus
-* PromQL
-* Grafana
-* Node Exporter
-* cAdvisor
-* Blackbox Exporter
-* alerting
-* application metrics
-* infrastructure metrics
-
-### Reliability
-
-* health checks
-* automatic deployment verification
-* monitoring separation
-* alerts
-* backups
-* private monitoring endpoints
-
----
-
-# 📚 Simple Terminology
-
-| Term                      | Simple explanation                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| **API**                   | A way for software applications to communicate with each other.                      |
-| **Backend**               | The server-side part of an application that processes requests and data.             |
-| **Frontend**              | The user-facing part of the application.                                             |
-| **Container**             | An isolated environment used to run an application and its dependencies.             |
-| **Docker**                | A platform for building and running containers.                                      |
-| **Docker Compose**        | A tool for defining and running multiple Docker containers together.                 |
-| **Image**                 | A packaged template used to create a Docker container.                               |
-| **Volume**                | Persistent storage used by containers.                                               |
-| **Nginx**                 | A web server and reverse proxy.                                                      |
-| **Reverse Proxy**         | A server that receives requests and forwards them to internal services.              |
-| **CI/CD**                 | Automation for integrating, building, testing and deploying software.                |
-| **GitHub Actions**        | GitHub's automation platform used here for deployment.                               |
-| **Prometheus**            | A system that collects and stores numerical monitoring metrics.                      |
-| **PromQL**                | The query language used by Prometheus.                                               |
-| **Grafana**               | A platform used to visualize metrics through dashboards.                             |
-| **Node Exporter**         | Collects Linux server metrics such as CPU, memory, disk and network information.     |
-| **cAdvisor**              | Collects resource usage information from containers.                                 |
-| **Blackbox Exporter**     | Tests whether an external service or endpoint is reachable and responding.           |
-| **Metric**                | A numerical measurement describing system activity or health.                        |
-| **Alert**                 | A notification condition triggered when a monitoring rule is satisfied.              |
-| **Health Check**          | A test used to determine whether an application is functioning.                      |
-| **Endpoint**              | A specific URL through which an application provides functionality or information.   |
-| **SSH**                   | A secure protocol used to remotely access Linux servers.                             |
-| **VM**                    | Virtual Machine; a virtual computer running inside a cloud or physical server.       |
-| **Public IP**             | An IP address reachable from the public internet.                                    |
-| **Private IP**            | An internal network IP used for private communication.                               |
-| **Repository**            | A project stored and version-controlled by Git.                                      |
-| **Deployment**            | The process of putting application code into a running environment.                  |
-| **Prometheus Target**     | A system or service from which Prometheus collects metrics.                          |
-| **Scrape**                | The process where Prometheus retrieves metrics from a target.                        |
-| **Dashboard**             | A visual collection of monitoring panels and graphs.                                 |
-| **Stateful Application**  | An application that needs persistent data, such as PostgreSQL.                       |
-| **Stateless Application** | An application where individual instances do not need to keep permanent local state. |
-
----
-
-# 🏛️ Why the Architecture Was Designed This Way
-
-The project evolved from a simple application deployment into a more realistic DevOps environment.
-
-Instead of putting everything on one VM:
-
-```text
-One VM
-├── Application
-├── Database
-├── Prometheus
-├── Grafana
-└── Monitoring
-```
-
-the final architecture separates production and monitoring:
-
-```text
+    ↓
 Production VM
-├── Application
-├── Database
-├── Node Exporter
-└── cAdvisor
+    ↓
+Docker Compose
+    ↓
+Health Check
+    ↓
+Production Release
 
-Monitoring VM
-├── Prometheus
-├── Grafana
-└── Blackbox Exporter
-```
 
-This separation makes the monitoring system more independent from the application it monitors.
+No manual application deployment is required for normal code changes after the CI/CD pipeline is configured.
 
 ---
 
-# 🔄 Migration Lessons
+# 📞 Project Resources
 
-During development, the monitoring architecture was improved to avoid unnecessary duplication.
+### GitHub
 
-Initially, monitoring components were present on the monitoring VM as well as the production VM.
+https://github.com/farhan92cr/Investment-tracker
 
-This created duplicate monitoring targets.
+### Live Application
 
-The final design keeps:
+http://130.210.42.159
 
-```text
-Node Exporter → Production VM
-cAdvisor      → Production VM
-```
+### Production Monitoring
 
-while the monitoring VM contains:
-
-```text
-Prometheus
-Grafana
-Blackbox Exporter
-```
-
-This provides a cleaner architecture.
+http://132.226.189.195:3000/public-dashboards/baf9c5ba69ed43d482f08284a1cda3e3
 
 ---
 
-# 🔐 Monitoring Security Improvement
+# 📄 Project Status
 
-cAdvisor had previously been exposed more broadly than necessary.
+**Status:** Production Deployment
 
-It was recreated with a private binding:
-
-```text
-10.0.0.221:8080
-```
-
-Node Exporter is similarly bound to:
-
-```text
-10.0.0.221:9100
-```
-
-This follows the principle:
-
-> Monitoring endpoints should not be publicly exposed unless there is a specific reason to expose them.
+The Investment Tracker is deployed with automated CI/CD, persistent database storage, centralized monitoring, health checks, production alerting, and backup procedures.
 
 ---
-
-# 📦 Current Production Containers
-
-The production environment currently contains:
-
-```text
-node-exporter
-investment-tracker-frontend-1
-investment-tracker-backend-1
-cadvisor
-investment-tracker-db-1
-```
-
-All important application services were verified during the monitoring setup.
-
----
-
-# 📦 Current Monitoring Containers
-
-The monitoring environment contains:
-
-```text
-prometheus
-grafana
-blackbox-exporter
-```
-
-The monitoring VM intentionally does **not** run its own Node Exporter or cAdvisor because the goal is to monitor the production environment rather than duplicate production monitoring targets.
-
----
-
-# 🚀 Future Improvements
-
-The current project is intentionally not considered the final possible architecture.
-
-Potential future improvements include:
-
-* HTTPS/TLS
-* domain name
-* stronger secrets management
-* centralized logging
-* automated database backup verification
-* off-site disaster recovery
-* container image security scanning
-* automated testing in CI
-* infrastructure as code
-* Terraform
-* Ansible
-* Kubernetes
-* managed PostgreSQL
-* Kubernetes-based autoscaling
-* more advanced observability
-
----
-
-# ☸️ Kubernetes — Future Direction
-
-Kubernetes is intentionally **not part of the current deployment**.
-
-It will be considered as a future stage after the current Docker/OCI architecture is fully documented and understood.
-
-The current architecture provides the foundation for learning Kubernetes because the application already has separate:
-
-```text
-Frontend
-Backend
-Database
-Monitoring
-```
-
-In a future Kubernetes architecture, the stateless application components could be represented by Kubernetes Deployments and Services, while stateful workloads such as PostgreSQL would require appropriate persistent storage and stateful architecture.
-
-Possible future architecture:
-
-```text
-Kubernetes Cluster
-│
-├── Frontend Pods
-│
-├── Backend Pods
-│
-├── Services
-│
-├── Ingress
-│
-├── Persistent Storage
-│
-├── Monitoring
-│
-└── Autoscaling
-```
-
-Kubernetes would allow the project to explore:
-
-* container orchestration
-* automatic recovery
-* service discovery
-* rolling deployments
-* horizontal scaling
-* load balancing
-* health probes
-* persistent storage
-* cluster monitoring
-
----
-
-# 📝 Project Status
-
-## Completed
-
-* [x] Application containerization
-* [x] Docker Compose deployment
-* [x] PostgreSQL integration
-* [x] Nginx reverse proxy
-* [x] Oracle Cloud production VM
-* [x] GitHub repository
-* [x] SSH-based deployment
-* [x] GitHub Actions CI/CD
-* [x] Automated deployment
-* [x] Deployment health check
-* [x] FastAPI Prometheus instrumentation
-* [x] Dedicated monitoring VM
-* [x] Prometheus
-* [x] Grafana
-* [x] Blackbox Exporter
-* [x] Node Exporter
-* [x] cAdvisor
-* [x] Production health monitoring
-* [x] Application metrics
-* [x] Infrastructure metrics
-* [x] Docker/container monitoring
-* [x] Grafana dashboard
-* [x] Prometheus alerting
-* [x] Production server alert
-* [x] API availability alert
-* [x] Disk usage alert
-* [x] Monitoring security improvements
-* [x] Grafana backup
-* [x] Prometheus configuration backup
-* [x] Prometheus historical data backup
-* [x] Production monitoring backup preservation
-* [x] Monitoring architecture verification
-
-## Planned Later
-
-* [ ] HTTPS
-* [ ] Advanced logging
-* [ ] Additional security hardening
-* [ ] Infrastructure as Code
-* [ ] Kubernetes
-* [ ] Advanced disaster recovery
-
----
-
-# 🎯 What This Project Demonstrates
-
-This project demonstrates a practical DevOps workflow rather than simply running an application locally.
-
-The final system covers:
-
-```text
-Code
- │
- ▼
-GitHub
- │
- ▼
-CI/CD
- │
- ▼
-Docker
- │
- ▼
-Oracle Cloud
- │
- ├── Nginx
- ├── Frontend
- ├── Backend
- └── PostgreSQL
- │
- ▼
-Monitoring
- │
- ├── Prometheus
- ├── Grafana
- ├── Node Exporter
- ├── cAdvisor
- └── Blackbox Exporter
- │
- ▼
-Alerts + Dashboards
- │
- ▼
-Backups + Recovery Planning
-```
-
-The project therefore demonstrates the complete basic lifecycle of a cloud-hosted application:
-
-> **Develop → Version Control → Build → Deploy → Monitor → Alert → Troubleshoot → Backup → Improve**
-
----
-
-# 👨‍💻 Project Purpose
-
-This project was built as a hands-on DevOps learning project to gain practical experience with:
-
-* Linux
-* Docker
-* Docker Compose
-* Git/GitHub
-* GitHub Actions
-* CI/CD
-* Oracle Cloud
-* Nginx
-* FastAPI
-* PostgreSQL
-* Prometheus
-* Grafana
-* Node Exporter
-* cAdvisor
-* Blackbox Exporter
-* monitoring
-* alerting
-* backup and recovery
-* cloud infrastructure
-
-The goal is not only to make the application work, but to understand how an application can be **deployed, monitored, maintained, and improved like a real production system**.
-
----
-
-## 📌 Final Architecture Summary
-
-```text
-                         ┌─────────────────────┐
-                         │       GitHub        │
-                         │   Source + Actions  │
-                         └──────────┬──────────┘
-                                    │
-                               CI/CD SSH
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────┐
-│                  ORACLE CLOUD                           │
-│                                                         │
-│  ┌─────────────────────────┐                            │
-│  │     Production VM       │                            │
-│  │     130.210.42.159      │                            │
-│  │                         │                            │
-│  │  ┌───────────────────┐  │                            │
-│  │  │       Nginx       │  │                            │
-│  │  │       :80         │  │                            │
-│  │  └─────────┬─────────┘  │                            │
-│  │            │            │                            │
-│  │     ┌──────┴──────┐     │                            │
-│  │     ▼             ▼     │                            │
-│  │ Frontend       Backend  │                            │
-│  │  :5173          :8000   │                            │
-│  │                    │     │                            │
-│  │                    ▼     │                            │
-│  │               PostgreSQL │                            │
-│  │                         │                            │
-│  │ Node Exporter :9100     │                            │
-│  │ cAdvisor      :8080     │                            │
-│  └───────────────┬─────────┘                            │
-│                  │                                      │
-│                  │ Private network                      │
-│                  │                                      │
-│  ┌───────────────▼──────────────────────┐               │
-│  │         Monitoring VM                │               │
-│  │         132.226.189.195              │               │
-│  │                                      │               │
-│  │  Prometheus :9090                    │               │
-│  │       │                              │               │
-│  │       ├── Node Exporter              │               │
-│  │       ├── cAdvisor                   │               │
-│  │       └── FastAPI metrics            │               │
-│  │                                      │               │
-│  │  Blackbox Exporter                   │               │
-│  │       │                              │               │
-│  │       └── /health                    │               │
-│  │                                      │               │
-│  │  Grafana :3000                       │               │
-│  └──────────────────────────────────────┘               │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## ⭐ Final Result
-
-The Investment Tracker is now more than a Dockerized application.
-
-It is a cloud-hosted application with:
-
-**automated deployment + containerization + database + reverse proxy + application metrics + infrastructure monitoring + dashboards + health checks + alerting + backups + security considerations.**
-
-Kubernetes is intentionally left as the **next major DevOps learning stage**, rather than being added before the current architecture is fully understood.
