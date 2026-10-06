@@ -10,6 +10,7 @@ import StockMaster from './pages/StockMaster.jsx'
 import BuyTransactions from './pages/BuyTransactions.jsx'
 import SoldTransactions from './pages/SoldTransactions.jsx'
 import Prices from './pages/Prices.jsx'
+import AIAssistant from './pages/AIAssistant.jsx'
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth()
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="buy" element={<BuyTransactions />} />
         <Route path="sold" element={<SoldTransactions />} />
         <Route path="prices" element={<Prices />} />
+        <Route path="ai" element={<AIAssistant />} />
       </Route>
     </Routes>
   )

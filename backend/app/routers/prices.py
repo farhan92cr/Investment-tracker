@@ -41,6 +41,42 @@ def latest_prices(db: Session = Depends(get_db), user: models.User = Depends(aut
             ))
     return out
 
+PUBLIC_TICKERS = ["FFC", "OGDC", "MARI", "LUCK", "SYS"]
+
+
+@router.get("/public-latest")
+def public_latest_prices():
+    """Latest public PSX prices for the landing-page ticker."""
+    results = []
+
+    for ticker in PUBLIC_TICKERS:
+        try:
+            quote = psxdata.quote(ticker)
+
+            if quote.empty:
+                continue
+
+            raw_price = quote.iloc[0].get("price")
+
+            if raw_price is None:
+                continue
+
+            price = float(raw_price)
+
+            if price <= 0:
+                continue
+
+            results.append({
+                "ticker": ticker,
+                "price": price,
+            })
+
+        except Exception:
+            continue
+
+    return results
+
+
 @router.post("/update-market")
 def update_market_prices(
     db: Session = Depends(get_db),

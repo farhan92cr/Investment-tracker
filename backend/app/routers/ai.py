@@ -48,6 +48,77 @@ def ai_portfolio(
     return build_ai_portfolio_summary(db, user.id)
 
 
+DEMO_PORTFOLIO = {
+    "total_invested": 389745,
+    "total_current_value": 391885,
+    "unrealized_gain_loss": 2140,
+    "unrealized_gain_loss_pct": 0.55,
+    "holdings": [
+        {"ticker": "FFC", "invested": 50231, "current_value": 52400},
+        {"ticker": "OGDC", "invested": 32808, "current_value": 31600},
+        {"ticker": "MARI", "invested": 90600, "current_value": 96200},
+        {"ticker": "LUCK", "invested": 37936, "current_value": 36900},
+    ],
+    "sectors": [
+        {"name": "Fertilizer", "value": 50231},
+        {"name": "Oil & Gas", "value": 103928},
+        {"name": "Tech", "value": 20263},
+        {"name": "ETFs", "value": 158189},
+    ],
+}
+
+
+@router.post("/demo-chat")
+def ai_demo_chat(request: ChatRequest):
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="GEMINI_API_KEY is not configured"
+        )
+
+    try:
+        prompt = f"""
+You are a demo AI investment assistant for a PSX portfolio tracking application.
+
+This is SAMPLE portfolio data for demonstration only:
+
+{json.dumps(DEMO_PORTFOLIO, indent=2)}
+
+Visitor's question:
+{request.message}
+
+Answer the visitor's question using only the sample portfolio data above.
+
+Important:
+- Clearly treat these numbers as sample/demo data.
+- Use the provided numbers accurately.
+- Explain calculations in simple language when useful.
+- Do not invent portfolio data.
+- If the question requires information that is not present, clearly say that the information is not available in the demo data.
+- Do not present your response as guaranteed financial advice.
+- Keep the answer concise and beginner-friendly.
+"""
+
+        client = genai.Client(api_key=api_key)
+
+        response = client.models.generate_content(
+            model="gemini-3.5-flash",
+            contents=prompt
+        )
+
+        return {
+            "answer": response.text
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI service error: {str(e)}"
+        )
+
+
 @router.post("/chat")
 def ai_chat(
     request: ChatRequest,
@@ -88,7 +159,7 @@ Important:
         client = genai.Client(api_key=api_key)
 
         response = client.models.generate_content(
-            model="gemini-3.8-flash",
+            model="gemini-3.5-flash",
             contents=prompt
         )
 

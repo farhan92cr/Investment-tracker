@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
-import { Wallet, LineChart as LineChartIcon, PieChart as PieIcon, Clock } from 'lucide-react'
+import { Wallet, LineChart as LineChartIcon, PieChart as PieIcon, Clock, Bot } from 'lucide-react'
 import PriceTicker from '../components/PriceTicker.jsx'
+import api from '../lib/api'
 
 const PRODUCT_NAME = 'ShariahMate' // change this to your own brand name - used only here and in the nav
 
@@ -30,9 +31,46 @@ const DEMO_STOCKS = [
 ]
 
 export default function Landing() {
+  const [tickerItems, setTickerItems] = useState(DEMO_TICKER)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadLivePrices() {
+      try {
+        const response = await fetch(
+          'http://localhost:8000/prices/public-latest'
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to load live prices')
+        }
+
+        const data = await response.json()
+
+        if (!cancelled && Array.isArray(data) && data.length > 0) {
+          setTickerItems(data)
+        }
+      } catch {
+        // Keep demo prices as fallback if live PSX data is unavailable.
+      }
+    }
+
+    loadLivePrices()
+
+    const interval = setInterval(loadLivePrices, 5 * 60 * 1000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [])
+
+  const showingLivePrices = tickerItems !== DEMO_TICKER
+
   return (
     <div>
-      <PriceTicker items={DEMO_TICKER} demo />
+      <PriceTicker items={tickerItems} demo={!showingLivePrices} />
 
       <nav className="landing-nav">
         <div className="brand">{PRODUCT_NAME}<span>.</span></div>
@@ -130,6 +168,68 @@ export default function Landing() {
             <h3>Growth over time</h3>
             <p>A running curve of what you've put in versus what it's worth now.</p>
           </div>
+            <div className="feature-card ai-demo-card">
+              <Bot className="icon" size={22} />
+              <h3>AI Investment Assistant</h3>
+              <p>Try the AI assistant with our sample portfolio.</p>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault()
+
+                  const input = e.currentTarget.elements.aiQuestion
+                  const question = input.value.trim()
+
+                  if (!question) return
+
+                  const button = e.currentTarget.querySelector('button[type="submit"]')
+                  const responseBox = e.currentTarget.querySelector('.ai-demo-response')
+
+                  button.disabled = true
+                  button.textContent = 'Thinking...'
+                  responseBox.textContent = ''
+
+                  try {
+                    const response = await api.post('/ai/demo-chat', {
+                      message: question,
+                    })
+
+                    responseBox.textContent =
+                      response.data.answer || 'No answer received.'
+                  } catch (error) {
+                    responseBox.textContent =
+                      error.message || 'Unable to connect to the AI assistant.'
+                  } finally {
+                    button.disabled = false
+                    button.textContent = 'Ask AI'
+                  }
+                }}
+              >
+                <input
+                  type="text"
+                  name="aiQuestion"
+                  placeholder="Ask about the demo portfolio..."
+                  style={{ width: '100%', marginTop: 12, boxSizing: 'border-box' }}
+                />
+
+                <button type="submit" style={{ marginTop: 10 }}>
+                  Ask AI
+                </button>
+
+                <div
+                  className="ai-demo-response"
+                  style={{
+                    marginTop: 14,
+                    whiteSpace: 'pre-wrap',
+                    lineHeight: 1.5,
+                  }}
+                />
+
+                <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ink-soft)' }}>
+                  Try: "What is the portfolio value?" or "Which stock is performing best?"
+                </div>
+              </form>
+            </div>
         </div>
       </section>
 

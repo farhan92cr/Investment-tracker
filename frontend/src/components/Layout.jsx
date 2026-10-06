@@ -14,6 +14,7 @@ export default function Layout() {
         <NavLink to="/app/buy">Buy Transactions</NavLink>
         <NavLink to="/app/sold">Sold Transactions</NavLink>
         <NavLink to="/app/prices">Prices</NavLink>
+        <NavLink to="/app/ai">AI Assistant</NavLink>
         <a href="#" onClick={(e) => { e.preventDefault(); logout() }} style={{ marginTop: 20, opacity: 0.8 }}>
           Log out ({user?.email})
         </a>
