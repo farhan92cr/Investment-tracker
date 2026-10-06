@@ -13,7 +13,7 @@ export default function AddInvestmentModal({ onClose, onSaved }) {
   const [buy, setBuy] = useState({ bought_price: '', units: '', date_of_buy: '', brok_rate: '' })
 
   useEffect(() => {
-    api.get('/stocks').then((res) => setStocks(res.data))
+    api.get('/stocks').then((res) => setStocks(Array.isArray(res.data) ? res.data : res.data.value || []))
   }, [])
 
   async function handleSubmit(e) {

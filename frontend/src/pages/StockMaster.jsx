@@ -7,7 +7,7 @@ export default function StockMaster() {
   const [error, setError] = useState('')
 
   function load() {
-    api.get('/stocks').then((res) => setStocks(res.data))
+    api.get('/stocks').then((res) => setStocks(Array.isArray(res.data) ? res.data : res.data.value || []))
   }
   useEffect(load, [])
 

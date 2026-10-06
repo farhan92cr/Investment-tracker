@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.database import Base, engine
-from app.routers import auth, stocks, transactions, prices, summary
+from app.routers import auth, stocks, transactions, prices, summary, ai
 
 # MVP-simple table creation. Once the schema stabilizes, swap this for
 # Alembic migrations so schema changes are versioned instead of implicit.
@@ -26,6 +26,7 @@ app.include_router(stocks.router)
 app.include_router(transactions.router)
 app.include_router(prices.router)
 app.include_router(summary.router)
+app.include_router(ai.router)
 
 
 @app.get("/health")

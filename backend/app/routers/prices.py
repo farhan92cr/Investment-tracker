@@ -1,5 +1,6 @@
 import datetime as dt
 
+import psxdata
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -40,6 +41,109 @@ def latest_prices(db: Session = Depends(get_db), user: models.User = Depends(aut
             ))
     return out
 
+@router.post("/update-market")
+def update_market_prices(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.get_current_user),
+):
+    stocks = db.query(models.Stock).filter(models.Stock.user_id == user.id).all()
+
+    if not stocks:
+        raise HTTPException(
+            status_code=404,
+            detail="No stocks found in your Stock Master"
+        )
+
+    results = []
+
+    for stock in stocks:
+        try:
+            quote = psxdata.quote(stock.ticker)
+
+            # PSX returned no data
+            if quote.empty:
+                results.append({
+                    "ticker": stock.ticker,
+                    "status": "failed",
+                    "reason": "No market data returned by PSX",
+                })
+                continue
+
+            # Get the price from the quote
+            raw_price = quote.iloc[0].get("price")
+
+            # Price is missing
+            if raw_price is None:
+                results.append({
+                    "ticker": stock.ticker,
+                    "status": "failed",
+                    "reason": "Price was not returned by PSX",
+                })
+                continue
+
+            # Make sure the price is a valid number
+            try:
+                price = float(raw_price)
+            except (TypeError, ValueError):
+                results.append({
+                    "ticker": stock.ticker,
+                    "status": "failed",
+                    "reason": f"Invalid price returned by PSX: {raw_price}",
+                })
+                continue
+
+            # Don't save zero or negative prices
+            if price <= 0:
+                results.append({
+                    "ticker": stock.ticker,
+                    "status": "failed",
+                    "reason": f"Invalid price returned by PSX: {price}",
+                })
+                continue
+
+            # Only valid prices reach the database
+            row = models.PriceEntry(
+                user_id=user.id,
+                stock_id=stock.id,
+                price=price,
+                recorded_at=dt.datetime.utcnow(),
+                source="psx",
+            )
+
+            db.add(row)
+
+            results.append({
+                "ticker": stock.ticker,
+                "status": "updated",
+                "price": price,
+                "source": "psx",
+            })
+
+        except Exception as e:
+            results.append({
+                "ticker": stock.ticker,
+                "status": "failed",
+                "reason": str(e),
+            })
+
+    db.commit()
+
+    updated_count = sum(
+        1 for result in results
+        if result["status"] == "updated"
+    )
+
+    failed_count = sum(
+        1 for result in results
+        if result["status"] == "failed"
+    )
+
+    return {
+        "message": "Market price update completed",
+        "updated_count": updated_count,
+        "failed_count": failed_count,
+        "results": results,
+    }
 
 @router.post("", response_model=schemas.PriceOut, status_code=201)
 def add_price(

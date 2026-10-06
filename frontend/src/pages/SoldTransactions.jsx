@@ -8,8 +8,8 @@ export default function SoldTransactions() {
   const [error, setError] = useState('')
 
   function load() {
-    api.get('/sold-transactions').then((res) => setRows(res.data))
-    api.get('/stocks').then((res) => setStocks(res.data))
+    api.get('/sold-transactions').then((res) => setRows(Array.isArray(res.data) ? res.data : res.data.value || []))
+    api.get('/stocks').then((res) => setStocks(Array.isArray(res.data) ? res.data : res.data.value || []))
   }
   useEffect(load, [])
 

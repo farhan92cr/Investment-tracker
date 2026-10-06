@@ -1,0 +1,44 @@
+Phase 1 — Kubernetes fundamentals
+
+Understand Kubernetes architecture
+Install kubectl
+Install/run a local Kubernetes cluster
+Pods
+Deployments
+Services
+ConfigMaps
+Secrets
+Persistent Volumes
+Namespaces
+
+Phase 2 — Containerize the Investment Tracker for Kubernetes
+11. Backend Deployment
+12. Frontend Deployment
+13. PostgreSQL
+14. Persistent storage
+15. Services
+16. Ingress
+17. Environment variables
+18. Health/readiness probes
+
+Phase 3 — Kubernetes monitoring
+19. Prometheus
+20. Grafana
+21. Kubernetes metrics
+22. Node/container monitoring
+23. Alerts
+
+Phase 4 — Kubernetes CI/CD
+24. GitHub Actions → Kubernetes
+25. Automated image builds
+26. Container registry
+27. Deployment strategy
+28. Rollback
+
+Phase 5 — Cloud Kubernetes
+29. Kubernetes on Oracle Cloud
+30. Networking
+31. Load balancing
+32. Persistent volumes
+33. Production security
+34. Final production deployment

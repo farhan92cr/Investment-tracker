@@ -23,18 +23,20 @@ export default function Dashboard() {
 
   function load() {
     api.get('/dashboard').then((res) => setData(res.data))
-    api.get('/prices/latest').then((res) => setLatestPrices(res.data))
+    api.get('/prices/latest').then((res) => {
+      setLatestPrices(Array.isArray(res.data) ? res.data : res.data.value || [])
+    })
   }
   useEffect(load, [])
 
   if (!data) return <p>Loading...</p>
 
-  const gainLossData = data.by_stock.map((s) => ({
+  const gainLossData = (data.by_stock || []).map((s) => ({
     ticker: s.ticker,
     gain_loss: s.unrealized_gain_loss ?? 0,
   }))
 
-  const growthData = data.growth.map((g) => ({
+  const growthData = (data.growth || []).map((g) => ({
     date: new Date(g.recorded_at).toLocaleDateString(),
     invested: g.total_invested,
     value: g.total_current_value,
@@ -91,7 +93,7 @@ export default function Dashboard() {
         <ResponsiveContainer width="100%" height={280}>
           <PieChart>
             <Pie data={data.by_sector} dataKey="total_invested" nameKey="sector" outerRadius={100} label>
-              {data.by_sector.map((_, i) => <Cell key={i} fill={SECTOR_COLORS[i % SECTOR_COLORS.length]} />)}
+              {(data.by_sector || []).map((_, i) => <Cell key={i} fill={SECTOR_COLORS[i % SECTOR_COLORS.length]} />)}
             </Pie>
             <Tooltip formatter={(v) => fmt(v)} />
             <Legend />
