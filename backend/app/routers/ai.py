@@ -118,9 +118,10 @@ Important:
         }
 
     except Exception as e:
+	print(f"AI service error: {type(e).__name__}: {e}")
         raise HTTPException(
             status_code=502,
-            detail=f"AI service error: {str(e)}"
+            detail="AI service is temporarily unavailable because the daily AI limit has been reached. Please try again later."
         )
 
 
