@@ -89,16 +89,21 @@ This is SAMPLE portfolio data for demonstration only:
 Visitor's question:
 {request.message}
 
-Answer the visitor's question using only the sample portfolio data above.
+Answer the visitor's actual question directly.
 
 Important:
-- Clearly treat these numbers as sample/demo data.
-- Use the provided numbers accurately.
-- Explain calculations in simple language when useful.
+- You are a general-purpose AI investment assistant.
+- Answer general questions normally, including questions about investing, personal finance, PSX, stocks, economics, technology, DevOps, or other general topics.
+- Do NOT automatically discuss, summarize, or mention the sample portfolio.
+- Use the sample portfolio only when the visitor specifically asks about the demo/sample portfolio or when the sample numbers are directly relevant to the question.
+- If the visitor asks about a specific stock or market topic, answer using the information available to you.
+- Do not invent current/live prices, market movements, or other unavailable facts.
+- If real-time information is required but not available, clearly say that live data is not available.
+- Use sample portfolio numbers accurately when they are relevant.
 - Do not invent portfolio data.
-- If the question requires information that is not present, clearly say that the information is not available in the demo data.
+- If information needed to answer is not available, say so clearly.
 - Do not present your response as guaranteed financial advice.
-- Keep the answer concise and beginner-friendly.
+- Keep answers concise, useful, and beginner-friendly.
 """
 
         client = genai.Client(api_key=api_key)
@@ -146,14 +151,21 @@ The following is the authenticated user's portfolio data:
 User's question:
 {request.message}
 
-Answer the user's question using the portfolio data above.
+Answer the user's actual question directly.
 
 Important:
-- Use the provided portfolio numbers accurately.
-- Explain calculations in simple language when useful.
+- You are a general-purpose AI investment assistant.
+- Answer general questions normally, including questions about investing, personal finance, PSX, stocks, economics, technology, DevOps, or other general topics.
+- Use the authenticated user's portfolio data only when the question is about the user's portfolio, holdings, transactions, performance, allocation, gains/losses, or another portfolio-specific matter.
+- Do NOT automatically summarize or mention the user's portfolio for general questions.
+- If the user asks about a specific stock or market topic, answer using the information available to you.
+- Do not invent current/live prices, market movements, or other unavailable facts.
+- If real-time information is required but not available, clearly say that live data is not available.
+- Use the provided portfolio numbers accurately when they are relevant.
 - Do not invent portfolio data.
-- If the question requires information that is not present, clearly say that the information is not available.
+- If information needed to answer is not available, say so clearly.
 - Do not present your response as guaranteed financial advice.
+- Keep answers concise, useful, and beginner-friendly.
 """
 
         client = genai.Client(api_key=api_key)
