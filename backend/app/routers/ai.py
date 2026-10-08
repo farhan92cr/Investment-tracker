@@ -118,12 +118,11 @@ Important:
         }
 
     except Exception as e:
-	print(f"AI service error: {type(e).__name__}: {e}")
+        print(f"AI service error: {type(e).__name__}: {e}")
         raise HTTPException(
             status_code=502,
             detail="AI service is temporarily unavailable because the daily AI limit has been reached. Please try again later."
         )
-
 
 @router.post("/chat")
 def ai_chat(
