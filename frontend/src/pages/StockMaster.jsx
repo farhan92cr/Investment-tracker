@@ -23,11 +23,14 @@ export default function StockMaster() {
     }
   }
 
-  async function handleDelete(id) {
-  const confirmed = window.confirm('Are you sure you want to delete this? This cannot be undone yet.')
-  if (!confirmed) return
-  await api.delete(`/stocks/${id}`)   // (keep whatever your actual endpoint is per file)
-  load()
+ async function handleDelete(id) {
+  if (!window.confirm('Are you sure you want to delete this buy? This cannot be undone yet.')) return
+  try {
+    await api.delete(`/buy-transactions/${id}`)
+    load()
+  } catch (err) {
+    alert(err.response?.data?.detail || 'Delete failed: ' + err.message)
+  }
 }
 
   return (
