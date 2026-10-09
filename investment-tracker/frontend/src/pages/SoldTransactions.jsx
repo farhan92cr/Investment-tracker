@@ -8,8 +8,8 @@ export default function SoldTransactions() {
   const [error, setError] = useState('')
 
   function load() {
-    api.get('/sold-transactions').then((res) => setRows(Array.isArray(res.data) ? res.data : res.data.value || []))
-    api.get('/stocks').then((res) => setStocks(Array.isArray(res.data) ? res.data : res.data.value || []))
+    api.get('/sold-transactions').then((res) => setRows(res.data))
+    api.get('/stocks').then((res) => setStocks(res.data))
   }
   useEffect(load, [])
 
@@ -31,14 +31,9 @@ export default function SoldTransactions() {
   }
 
   async function handleDelete(id) {
-  if (!window.confirm('Are you sure you want to delete this sale? This cannot be undone yet.')) return
-  try {
     await api.delete(`/sold-transactions/${id}`)
     load()
-  } catch (err) {
-    alert(err.response?.data?.detail || 'Delete failed: ' + err.message)
   }
-}
 
   return (
     <div>
