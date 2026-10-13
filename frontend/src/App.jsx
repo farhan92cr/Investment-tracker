@@ -11,6 +11,9 @@ import BuyTransactions from './pages/BuyTransactions.jsx'
 import SoldTransactions from './pages/SoldTransactions.jsx'
 import Prices from './pages/Prices.jsx'
 import AIAssistant from './pages/AIAssistant.jsx'
+import VerifyEmail from './pages/VerifyEmail.jsx'
+import ResetPassword from './pages/ResetPassword.jsx'
+import ForgotPassword from './pages/ForgotPassword.jsx'
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth()
@@ -32,6 +35,9 @@ export default function App() {
       <Route path="/" element={<HomeRoute />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route
         path="/app"
         element={

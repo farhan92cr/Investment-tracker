@@ -15,6 +15,16 @@ class UserLogin(BaseModel):
     password: str
 
 
+class ForgotPassword(BaseModel):
+    email: EmailStr
+
+
+class PasswordReset(BaseModel):
+    email: EmailStr
+    token: str
+    new_password: str
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

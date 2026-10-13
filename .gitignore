@@ -13,3 +13,5 @@ dist/
 # OS
 .DS_Store
 investment_tracker_backup.sql
+
+docker-compose.override.yml
