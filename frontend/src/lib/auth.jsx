@@ -33,7 +33,6 @@ export function AuthProvider({ children }) {
 
   async function signup(email, password) {
     await api.post('/auth/signup', { email, password })
-    await login(email, password)
   }
 
   function logout() {

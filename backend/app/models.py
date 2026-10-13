@@ -1,7 +1,8 @@
 import datetime as dt
 
 from sqlalchemy import (
-    Column, Integer, String, Float, DateTime, Date, ForeignKey, UniqueConstraint
+    Column, Integer, String, Float, DateTime, Date, ForeignKey,
+    UniqueConstraint, Boolean
 )
 from sqlalchemy.orm import relationship
 
@@ -14,7 +15,14 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+    is_verified = Column(Boolean, nullable=False, default=True, server_default="true")
     created_at = Column(DateTime, default=dt.datetime.utcnow)
+
+    verification_token_hash = Column(String, nullable=True)
+    verification_token_expires_at = Column(DateTime, nullable=True)
+
+    password_reset_token_hash = Column(String, nullable=True)
+    password_reset_token_expires_at = Column(DateTime, nullable=True)
 
     stocks = relationship("Stock", back_populates="owner", cascade="all, delete-orphan")
 

@@ -28,7 +28,12 @@ export default function Login() {
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         <button type="submit">Log in</button>
-        <div className="muted-link">No account yet? <Link to="/signup">Sign up</Link></div>
+        <div className="muted-link">
+        <Link to="/forgot-password">Forgot password?</Link>
+        </div>
+        <div className="muted-link">
+         No account yet? <Link to="/signup">Sign up</Link>
+        </div>
       </form>
     </div>
   )
